@@ -4,10 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.List;
-import java.util.Set;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 
 import robowiki.runner.BattleRunner.BotSet;
@@ -18,11 +16,11 @@ public class ChallengeConfig {
   public final ScoringStyle scoringStyle;
   public final int battleFieldWidth;
   public final int battleFieldHeight;
-  public final Set<BotSet> referenceBots;
+  public final List<BotSet> referenceBots;
 
   public ChallengeConfig(String name, int rounds, ScoringStyle scoringStyle,
       int battleFieldWidth, int battleFieldHeight,
-      Set<BotSet> referenceBots) {
+      List<BotSet> referenceBots) {
     this.name = name;
     this.rounds = rounds;
     this.scoringStyle = scoringStyle;
@@ -39,7 +37,7 @@ public class ChallengeConfig {
       String name = fileLines.get(0);
       ScoringStyle scoringStyle = ScoringStyle.parseStyle(fileLines.get(1));
       int rounds = Integer.parseInt(fileLines.get(2));
-      Set<BotSet> referenceBots = Sets.newHashSet();
+      List<BotSet> referenceBots = Lists.newArrayList();
 
       Integer width = null;
       Integer height = null;

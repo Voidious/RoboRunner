@@ -54,9 +54,11 @@ public class BattleRunner {
   }
 
   public void runBattles(List<BotSet> botSets, BattleResultHandler handler) {
+    List<Future<Map<String, RobotResults>>> futures = Lists.newArrayList();
     for (final BotSet botSet : botSets) {
-      Future<Map<String, RobotResults>> future =
-          _threadPool.submit(newBattleCallable(botSet));
+      futures.add(_threadPool.submit(newBattleCallable(botSet)));
+    }
+    for (Future<Map<String, RobotResults>> future : futures) {
       try {
         Map<String, RobotResults> botResults = future.get();
         handler.processResults(botResults);
