@@ -53,21 +53,7 @@ public class BattleRunner {
 
   public void runBattles(List<BotSet> battlesToRun) {
     for (final BotSet botSet : battlesToRun) {
-      Future<?> future = _threadPool.submit(new Runnable() {
-        @Override
-        public void run() {
-          RobocodeEngine engine = _engineQueue.poll();
-          BattleListener listener = _listeners.get(engine);
-          BattleSpecification battleSpec = new BattleSpecification(
-              _numRounds, _battlefield, 
-          engine.getLocalRepository(COMMA_JOINER.join(botSet.getBotNames())));
-          engine.runBattle(battleSpec);
-          engine.waitTillBattleOver();
-          _engineQueue.add(engine);
-          System.out.println("Battle result: ");
-          System.out.print(listener.getLastBattleResultString());
-        }
-      });
+      Future<?> future = _threadPool.submit(newBattleRunnable(botSet));
       try {
         future.get();
       } catch (InterruptedException e) {
@@ -78,14 +64,36 @@ public class BattleRunner {
     }
   }
 
-  public void shutdownThreads() {
+  private Runnable newBattleRunnable(final BotSet botSet) {
+    return new Runnable() {
+      @Override
+      public void run() {
+        RobocodeEngine engine = _engineQueue.poll();
+        BattleListener listener = _listeners.get(engine);
+        BattleSpecification battleSpec = new BattleSpecification(
+            _numRounds, _battlefield, 
+        engine.getLocalRepository(COMMA_JOINER.join(botSet.getBotNames())));
+        engine.runBattle(battleSpec);
+        engine.waitTillBattleOver();
+        _engineQueue.add(engine);
+        System.out.println("Battle result: ");
+        System.out.print(listener.getLastBattleResultString());
+      }
+    };
+  }
+
+  public void shutdown() {
     _threadPool.shutdown();
   }
 
   public static class BotSet {
     private List<String> _botNames;
 
-    public BotSet(String... botNames) {
+    public BotSet(String botName) {
+      _botNames = Lists.newArrayList(botName);
+    }
+
+    public BotSet(List<String> botNames) {
       _botNames = Lists.newArrayList(botNames);
     }
 
