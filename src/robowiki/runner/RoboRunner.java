@@ -18,6 +18,7 @@ import robowiki.runner.BattleRunner.BotSet;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 public class RoboRunner {
@@ -77,15 +78,17 @@ public class RoboRunner {
   }
 
   public void runBattles() {
-    // TODO: count battles already run for each bot, put in hash map,
-    //       skip corresponding battles when loading up battle set
     final Properties battleData = loadBattleData(_config.challengerBot);
+    Map<String, Integer> skipMap = getSkipMap(battleData);
     List<BotSet> battleSet = Lists.newArrayList();
     for (int x = 0; x < _config.seasons; x++) {
       for (BotSet botSet : _config.challenge.referenceBots) {
         List<String> battleBots = Lists.newArrayList(_config.challengerBot);
-        battleBots.addAll(botSet.getBotNames());
-        battleSet.add(new BotSet(battleBots));
+        List<String> botNames = botSet.getBotNames();
+        if (!skip(skipMap, botNames)) {
+          battleBots.addAll(botNames);
+          battleSet.add(new BotSet(battleBots));
+        }
       }
     }
     _battleRunner.runBattles(battleSet, new BattleResultHandler() {
@@ -94,7 +97,7 @@ public class RoboRunner {
         // TODO: handle other types of scoring
         double averagePercentScore =
             getAveragePercentScore(resultsMap, _config.challengerBot);
-        String botList = getBotList(resultsMap, _config.challengerBot);
+        String botList = getSortedBotList(resultsMap, _config.challengerBot);
         addBattleScore(battleData, botList, averagePercentScore);
         saveBattleData(battleData, _config.challengerBot);
       }
@@ -128,6 +131,29 @@ public class RoboRunner {
     }
   }
 
+  private Map<String, Integer> getSkipMap(Properties battleData) {
+    Map<String, Integer> skipMap = Maps.newHashMap();
+    for (String bot : battleData.stringPropertyNames()) {
+      String propertyString = battleData.getProperty(bot);
+      int numBattles = Integer.parseInt(
+          propertyString.substring(propertyString.indexOf(":") + 1));
+      skipMap.put(bot, numBattles);
+    }
+    return skipMap;
+  }
+
+  private boolean skip(Map<String, Integer> skipMap, List<String> botNames) {
+    String sortedBotList = getSortedBotList(botNames);
+    if (skipMap.containsKey(sortedBotList)) {
+      int skipsLeft = skipMap.get(sortedBotList);
+      if (skipsLeft > 0) {
+        skipMap.put(sortedBotList, skipsLeft - 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
   private void addBattleScore(Properties battleData, String botList,
       double newScore) {
     if (battleData.containsKey(botList)) {
@@ -156,12 +182,17 @@ public class RoboRunner {
     return totalAveragePercentScore / (resultsMap.size() - 1);
   }
 
-  private String getBotList(Map<String, RobotResults> resultsMap,
+  private String getSortedBotList(Map<String, RobotResults> resultsMap,
       String challengerBot) {
     List<String> botList = Lists.newArrayList(resultsMap.keySet());
     botList.remove(challengerBot);
-    Collections.sort(botList);
-    return COMMA_JOINER.join(botList);
+    return getSortedBotList(botList);
+  }
+
+  private String getSortedBotList(List<String> botList) {
+    List<String> sortedBotList = Lists.newArrayList(botList);
+    Collections.sort(sortedBotList);
+    return COMMA_JOINER.join(sortedBotList);
   }
 
   public void shutdown() {
