@@ -29,6 +29,51 @@ public class RoboRunner {
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
 
+  public static void main(String[] args) {
+    args = getCombinedArgs(args);
+    String challengerBot =
+        Preconditions.checkNotNull(parseArgument("bot", args),
+            "Pass a bot with -bot, eg: rr.sh -bot voidious.Dookious 1.573c");
+    String challengeFile = Preconditions.checkNotNull(parseArgument("c", args),
+        "Pass a challenge file with -c, eg: rr.sh -c challenges/testbed.rrc");
+    int seasons = Integer.parseInt(
+        Preconditions.checkNotNull(parseArgument("seasons", args),
+            "Pass number of seasons with -seasons, eg: rr.sh -seasons 10"));
+
+    RoboRunner runner = new RoboRunner(challengerBot, challengeFile, seasons);
+    runner.runBattles();
+    runner.shutdown();
+  }
+
+  private static String[] getCombinedArgs(String[] args) {
+    List<String> argsList = Lists.newArrayList();
+    String nextArg = "";
+    for (String arg : args) {
+      if (arg.startsWith("-")) {
+        if (!nextArg.equals("")) {
+          argsList.add(nextArg);
+          nextArg = "";
+        }
+        argsList.add(arg);
+      } else {
+        nextArg = (nextArg + " " + arg).trim();
+      }
+    }
+    if (!nextArg.equals("")) {
+      argsList.add(nextArg);
+    }
+    return argsList.toArray(new String[0]);
+  }
+
+  private static String parseArgument(String flagName, String[] args) {
+    for (int x = 0; x < args.length - 1; x++) {
+      if (args[x].equals("-" + flagName)) {
+        return args[x+1];
+      }
+    }
+    return null;
+  }
+
   public RoboRunner(String challengerBot, String challengeFilePath,
       int seasons) {
     Preconditions.checkArgument(seasons > 0);
