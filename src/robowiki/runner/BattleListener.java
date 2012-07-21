@@ -11,7 +11,6 @@ import robocode.control.events.BattleErrorEvent;
 
 public class BattleListener extends BattleAdaptor {
   private Map<String, RobotResults> _botResults;
-  private RobotResults[] _lastBattleResults;
 
   public BattleListener() {
     _botResults = Maps.newHashMap();
@@ -19,9 +18,9 @@ public class BattleListener extends BattleAdaptor {
 
   public void onBattleCompleted(BattleCompletedEvent completedEvent) {
     _botResults.clear();
-    _lastBattleResults =
+    RobotResults[] robotResultsArray =
         RobotResults.convertResults(completedEvent.getIndexedResults());
-    for (RobotResults robotResults : _lastBattleResults) {
+    for (RobotResults robotResults : robotResultsArray) {
       _botResults.put(
           robotResults.getRobot().getNameAndVersion(), robotResults);
     }
@@ -29,18 +28,6 @@ public class BattleListener extends BattleAdaptor {
 
   public void onBattleError(BattleErrorEvent battleErrorEvent) {
     System.out.println("Robocode error: " + battleErrorEvent.getError());
-  }
-
-  public String getLastBattleResultString() {
-    StringBuilder resultString = new StringBuilder();
-    for (RobotResults robotResults : _lastBattleResults) {
-      resultString.append("  ");
-      resultString.append(robotResults.getRobot().getNameAndVersion());
-      resultString.append(": ");
-      resultString.append(robotResults.getScore());
-      resultString.append("\n");
-    }
-    return resultString.toString();
   }
 
   public Map<String, RobotResults> getRobotResultsMap() {

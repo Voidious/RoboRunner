@@ -81,8 +81,6 @@ public class BattleRunner {
         engine.runBattle(battleSpec);
         engine.waitTillBattleOver();
         _engineQueue.add(engine);
-        System.out.println("Battle result: ");
-        System.out.print(listener.getLastBattleResultString());
         return listener.getRobotResultsMap();
       }
     };

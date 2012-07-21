@@ -123,6 +123,13 @@ public class RoboRunner {
   }
 
   public void runBattles() {
+    System.out.println();
+    System.out.println("Challenger: " + _config.challengerBot);
+    System.out.println("Challenge:  " + _config.challenge.name);
+    System.out.println("Seasons:    " + _config.seasons);
+    System.out.println("Threads:    " + _config.robocodePaths.size());
+    System.out.println();
+
     final Properties battleData = loadBattleData(_config.challengerBot);
     Map<String, Integer> skipMap = getSkipMap(battleData);
     List<BotSet> battleSet = Lists.newArrayList();
@@ -140,13 +147,19 @@ public class RoboRunner {
       @Override
       public void processResults(Map<String, RobotResults> resultsMap) {
         // TODO: handle other types of scoring
-        double averagePercentScore =
-            getAveragePercentScore(resultsMap, _config.challengerBot);
+        double aps = getAveragePercentScore(resultsMap, _config.challengerBot);
         String botList = getSortedBotList(resultsMap, _config.challengerBot);
-        addBattleScore(battleData, botList, averagePercentScore);
+        addBattleScore(battleData, botList, aps);
         saveBattleData(battleData, _config.challengerBot);
+        System.out.println("    vs " + botList.replace(",", ", ") + ": "
+            + round(aps, 2));
+        printOverallScore(battleData);
       }
     });
+
+    System.out.println();
+    System.out.println("Done!");
+    System.out.println();
   }
 
   private Properties loadBattleData(String challengerBot) {
@@ -174,6 +187,21 @@ public class RoboRunner {
     } catch (IOException e) {
       e.printStackTrace();
     }
+  }
+
+  private void printOverallScore(Properties battleData) {
+    double totalScore = 0;
+    int totalBotLists = 0;
+    int totalBattles = 0;
+    for (String botList : battleData.stringPropertyNames()) {
+      String[] scores = battleData.getProperty(botList).split(":");
+      double score = Double.parseDouble(scores[0]);
+      totalScore += score;
+      totalBotLists++;
+      totalBattles += Integer.parseInt(scores[1]);
+    }
+    System.out.println("Overall score: " + round(totalScore / totalBotLists, 2)
+        + ", " + round(((double) totalBattles) / totalBotLists, 2) + " seasons");
   }
 
   private Map<String, Integer> getSkipMap(Properties battleData) {
@@ -242,6 +270,14 @@ public class RoboRunner {
 
   public void shutdown() {
     _battleRunner.shutdown();
+  }
+
+  private double round(double d, int i) {
+    long powerTen = 1;
+    for (int x = 0; x < i; x++) {
+      powerTen *= 10;
+    }
+    return ((double) Math.round(d * powerTen)) / powerTen;
   }
 
   private static class RunnerConfig {
