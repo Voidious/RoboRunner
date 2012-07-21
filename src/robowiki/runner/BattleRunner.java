@@ -18,7 +18,6 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
-import com.google.common.collect.Sets;
 
 public class BattleRunner {
   private static final Joiner COMMA_JOINER = Joiner.on(",");
