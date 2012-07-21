@@ -1,21 +1,29 @@
 package robowiki.runner;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import robocode.control.RobotResults;
+import robowiki.runner.BattleRunner.BattleResultHandler;
 import robowiki.runner.BattleRunner.BotSet;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 public class RoboRunner {
   private static final String PROPERTIES_FILENAME = "roborunner.properties";
+  private static final String DATA_DIR = "data";
+  private static final Joiner COMMA_JOINER = Joiner.on(",");
 
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
@@ -71,6 +79,7 @@ public class RoboRunner {
   public void runBattles() {
     // TODO: count battles already run for each bot, put in hash map,
     //       skip corresponding battles when loading up battle set
+    final Properties battleData = loadBattleData(_config.challengerBot);
     List<BotSet> battleSet = Lists.newArrayList();
     for (int x = 0; x < _config.seasons; x++) {
       for (BotSet botSet : _config.challenge.referenceBots) {
@@ -79,7 +88,80 @@ public class RoboRunner {
         battleSet.add(new BotSet(battleBots));
       }
     }
-    _battleRunner.runBattles(battleSet);
+    _battleRunner.runBattles(battleSet, new BattleResultHandler() {
+      @Override
+      public void processResults(Map<String, RobotResults> resultsMap) {
+        // TODO: handle other types of scoring
+        double averagePercentScore =
+            getAveragePercentScore(resultsMap, _config.challengerBot);
+        String botList = getBotList(resultsMap, _config.challengerBot);
+        addBattleScore(battleData, botList, averagePercentScore);
+        saveBattleData(battleData, _config.challengerBot);
+      }
+    });
+  }
+
+  private Properties loadBattleData(String challengerBot) {
+    Properties properties = new Properties();
+    File dataFile = new File(DATA_DIR + "/" + challengerBot + ".data");
+    if (dataFile.exists()) {
+      try {
+        properties.load(new FileInputStream(dataFile));
+      } catch (FileNotFoundException e) {
+        e.printStackTrace();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+
+    return properties;
+  }
+
+  private void saveBattleData(Properties battleData, String challengerBot) {
+    try {
+      battleData.store(
+          new FileOutputStream(DATA_DIR + "/" + challengerBot + ".data"), null);
+    } catch (FileNotFoundException e) {
+      e.printStackTrace();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
+
+  private void addBattleScore(Properties battleData, String botList,
+      double newScore) {
+    if (battleData.containsKey(botList)) {
+      String[] scores = battleData.getProperty(botList).split(":");
+      double score = Double.parseDouble(scores[0]);
+      int numBattles = Integer.parseInt(scores[1]);
+      String updatedScore = ((score * numBattles) + newScore) / (numBattles + 1)
+          + ":" + (numBattles + 1);
+      battleData.setProperty(botList, updatedScore);
+    } else {
+      battleData.put(botList, newScore + ":" + 1);
+    }
+  }
+
+  private double getAveragePercentScore(
+      Map<String, RobotResults> resultsMap, String challengerBot) {
+    double totalAveragePercentScore = 0;
+    double challengerScore =
+        resultsMap.get(_config.challengerBot).getScore();
+    for (Map.Entry<String, RobotResults> results : resultsMap.entrySet()) {
+      if (!_config.challengerBot.equals(results.getKey())) {
+        totalAveragePercentScore += 100 * (challengerScore
+            / (challengerScore + results.getValue().getScore()));
+      }
+    }
+    return totalAveragePercentScore / (resultsMap.size() - 1);
+  }
+
+  private String getBotList(Map<String, RobotResults> resultsMap,
+      String challengerBot) {
+    List<String> botList = Lists.newArrayList(resultsMap.keySet());
+    botList.remove(challengerBot);
+    Collections.sort(botList);
+    return COMMA_JOINER.join(botList);
   }
 
   public void shutdown() {

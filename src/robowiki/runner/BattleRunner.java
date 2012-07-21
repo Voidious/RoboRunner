@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -13,6 +14,7 @@ import java.util.concurrent.Future;
 import robocode.control.BattleSpecification;
 import robocode.control.BattlefieldSpecification;
 import robocode.control.RobocodeEngine;
+import robocode.control.RobotResults;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
@@ -51,11 +53,13 @@ public class BattleRunner {
     _listeners.put(engine, listener);
   }
 
-  public void runBattles(List<BotSet> battlesToRun) {
-    for (final BotSet botSet : battlesToRun) {
-      Future<?> future = _threadPool.submit(newBattleRunnable(botSet));
+  public void runBattles(List<BotSet> botSets, BattleResultHandler handler) {
+    for (final BotSet botSet : botSets) {
+      Future<Map<String, RobotResults>> future =
+          _threadPool.submit(newBattleCallable(botSet));
       try {
-        future.get();
+        Map<String, RobotResults> botResults = future.get();
+        handler.processResults(botResults);
       } catch (InterruptedException e) {
         e.printStackTrace();
       } catch (ExecutionException e) {
@@ -64,10 +68,11 @@ public class BattleRunner {
     }
   }
 
-  private Runnable newBattleRunnable(final BotSet botSet) {
-    return new Runnable() {
+  private Callable<Map<String, RobotResults>> newBattleCallable(
+      final BotSet botSet) {
+    return new Callable<Map<String, RobotResults>>() {
       @Override
-      public void run() {
+      public Map<String, RobotResults> call() throws Exception {
         RobocodeEngine engine = _engineQueue.poll();
         BattleListener listener = _listeners.get(engine);
         BattleSpecification battleSpec = new BattleSpecification(
@@ -78,6 +83,7 @@ public class BattleRunner {
         _engineQueue.add(engine);
         System.out.println("Battle result: ");
         System.out.print(listener.getLastBattleResultString());
+        return listener.getRobotResultsMap();
       }
     };
   }
@@ -100,5 +106,9 @@ public class BattleRunner {
     public List<String> getBotNames() {
       return _botNames;
     }
+  }
+
+  public interface BattleResultHandler {
+    void processResults(Map<String, RobotResults> resultsMap);
   }
 }

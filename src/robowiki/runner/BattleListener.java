@@ -31,10 +31,6 @@ public class BattleListener extends BattleAdaptor {
     System.out.println("Robocode error: " + battleErrorEvent.getError());
   }
 
-  public RobotResults getRobotResults(String botName) {
-    return _botResults.get(botName);
-  }
-
   public String getLastBattleResultString() {
     StringBuilder resultString = new StringBuilder();
     for (RobotResults robotResults : _lastBattleResults) {
@@ -45,5 +41,9 @@ public class BattleListener extends BattleAdaptor {
       resultString.append("\n");
     }
     return resultString.toString();
+  }
+
+  public Map<String, RobotResults> getRobotResultsMap() {
+    return Maps.newHashMap(_botResults);
   }
 }
