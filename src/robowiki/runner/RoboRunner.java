@@ -1,11 +1,9 @@
 package robowiki.runner;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -15,10 +13,10 @@ import robowiki.runner.BattleRunner.BotSet;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.google.common.io.Files;
 
 public class RoboRunner {
   private static final String PROPERTIES_FILENAME = "roborunner.properties";
+
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
 
@@ -38,45 +36,8 @@ public class RoboRunner {
     Properties runnerProperties = loadRoboRunnerProperties();
     Set<String> robocodePaths = Sets.newHashSet(
         runnerProperties.getProperty("robocodePaths").split(" *, *"));
-    ChallengeConfig challenge = loadChallengeConfig(challengeFilePath);
+    ChallengeConfig challenge = ChallengeConfig.load(challengeFilePath);
     return new RunnerConfig(robocodePaths, challenge, challengerBot, seasons);
-  }
-
-  private ChallengeConfig loadChallengeConfig(String challengeFilePath) {
-    try {
-      // TODO: grouping like RoboResearch
-      List<String> fileLines = Files.readLines(
-          new File(challengeFilePath), Charset.defaultCharset());
-      String name = fileLines.get(0);
-      ScoringStyle scoringStyle = ScoringStyle.parseStyle(fileLines.get(1));
-      int rounds = Integer.parseInt(fileLines.get(2));
-      Set<BotSet> referenceBots = Sets.newHashSet();
-
-      Integer width = null;
-      Integer height = null;
-      for (int x = 3; x < fileLines.size(); x++) {
-        String line = fileLines.get(x).trim();
-        if (line.matches("^\\d+$")) {
-          int value = Integer.parseInt(line);
-          if (width == null) {
-            width = value;
-          } else if (height == null) {
-            height = value;
-          }
-        } else if (line.length() > 0 && !line.contains("{")
-            && !line.contains("}") && !line.contains("#")) {
-          referenceBots.add(
-              new BotSet(Lists.newArrayList(line.split(" *, *"))));
-        }
-      }
-
-      return new ChallengeConfig(name, rounds, scoringStyle,
-          (width == null ? 800 : width), (height == null ? 600 : height),
-          referenceBots);
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-    return null;
   }
 
   private Properties loadRoboRunnerProperties() {
@@ -137,42 +98,6 @@ public class RoboRunner {
       this.challenge = challenge;
       this.challengerBot = Preconditions.checkNotNull(challengerBot);
       this.seasons = seasons;
-    }
-  }
-
-  private static class ChallengeConfig {
-    public final String name;
-    public final int rounds;
-    public final ScoringStyle scoringStyle;
-    public final int battleFieldWidth;
-    public final int battleFieldHeight;
-    public final Set<BotSet> referenceBots;
-
-    public ChallengeConfig(String name, int rounds, ScoringStyle scoringStyle,
-        int battleFieldWidth, int battleFieldHeight,
-        Set<BotSet> referenceBots) {
-      this.name = name;
-      this.rounds = rounds;
-      this.scoringStyle = scoringStyle;
-      this.battleFieldWidth = battleFieldWidth;
-      this.battleFieldHeight = battleFieldHeight;
-      this.referenceBots = referenceBots;
-    }
-  }
-
-  private enum ScoringStyle {
-    PERCENT_SCORE,
-    BULLET_DAMAGE;
-
-    public static ScoringStyle parseStyle(String styleString) {
-      if (styleString.contains("PERCENT_SCORE")) {
-        return PERCENT_SCORE;
-      } else if (styleString.contains("BULLET_DAMAGE")) {
-        return BULLET_DAMAGE;
-      } else {
-        throw new IllegalArgumentException(
-            "Unrecognized scoring style: " + styleString);
-      }
     }
   }
 }
