@@ -17,10 +17,14 @@ public class BattleListener extends BattleAdaptor {
   }
 
   public void onBattleCompleted(BattleCompletedEvent completedEvent) {
-    _botResults.clear();
+    System.out.println("Battle completed ok");
     RobotResults[] robotResultsArray =
         RobotResults.convertResults(completedEvent.getIndexedResults());
+    if (robotResultsArray.length > 2) {
+      System.out.println("Results array > 2");
+    }
     for (RobotResults robotResults : robotResultsArray) {
+      System.out.println("  " + robotResults.getRobot().getNameAndVersion());
       _botResults.put(
           robotResults.getRobot().getNameAndVersion(), robotResults);
     }
@@ -31,6 +35,13 @@ public class BattleListener extends BattleAdaptor {
   }
 
   public Map<String, RobotResults> getRobotResultsMap() {
+    if (_botResults.size() > 2) {
+      System.out.println("How is results map > 2");
+    }
     return Maps.newHashMap(_botResults);
+  }
+
+  public void clear() {
+    _botResults.clear();
   }
 }

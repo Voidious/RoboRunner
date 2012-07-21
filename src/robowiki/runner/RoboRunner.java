@@ -136,7 +136,7 @@ public class RoboRunner {
     for (int x = 0; x < _config.seasons; x++) {
       for (BotSet botSet : _config.challenge.referenceBots) {
         List<String> battleBots = Lists.newArrayList(_config.challengerBot);
-        List<String> botNames = botSet.getBotNames();
+        List<String> botNames = Lists.newArrayList(botSet.getBotNames());
         if (!skip(skipMap, botNames)) {
           battleBots.addAll(botNames);
           battleSet.add(new BotSet(battleBots));
@@ -191,15 +191,14 @@ public class RoboRunner {
 
   private void printOverallScore(Properties battleData) {
     double totalScore = 0;
-    int totalBotLists = 0;
     int totalBattles = 0;
     for (String botList : battleData.stringPropertyNames()) {
       String[] scores = battleData.getProperty(botList).split(":");
       double score = Double.parseDouble(scores[0]);
       totalScore += score;
-      totalBotLists++;
       totalBattles += Integer.parseInt(scores[1]);
     }
+    int totalBotLists = _config.challenge.referenceBots.size();
     System.out.println("Overall score: " + round(totalScore / totalBotLists, 2)
         + ", " + round(((double) totalBattles) / totalBotLists, 2) + " seasons");
   }
