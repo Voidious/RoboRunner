@@ -20,8 +20,10 @@ import robowiki.runner.BattleRunner.BotSet;
 import robowiki.runner.BattleRunner.RobotScore;
 import robowiki.runner.ChallengeConfig.ScoringStyle;
 
+import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -31,6 +33,7 @@ public class RoboRunner {
   private static final String PROPERTIES_FILENAME = "roborunner.properties";
   private static final String DATA_DIR = "data";
   private static final Joiner COMMA_JOINER = Joiner.on(",");
+  private static final String SLASH = System.getProperty("file.separator");
 
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
@@ -40,7 +43,8 @@ public class RoboRunner {
     String challengerBot = parseArgument("bot", args,
         "ERROR: Pass a bot with -bot, eg: -bot voidious.Dookious 1.573c");
     String challengeFile = parseArgument("c", args,
-        "ERROR: Pass a challenge file with -c, eg: -c challenges/testbed.rrc");
+        "ERROR: Pass a challenge file with -c, eg: -c challenges" + SLASH
+        + "testbed.rrc");
     int seasons = -1;
     try {
       seasons = Integer.parseInt(parseArgument("seasons", args,
@@ -70,7 +74,8 @@ public class RoboRunner {
     out.println();
     out.println("Robocode installs are specified in roborunner.properties.");
     out.println("One thread is used for each install. JARs missing from their");
-    out.println("robots/ directories will be copied over from ./bots/, if");
+    out.println("robots" + SLASH + " directories will be copied over from ."
+        + SLASH + "bots" + SLASH + ", if");
     out.println("present.");
     out.println();
     out.println("Guava library should be placed in the lib dir, and rr.sh");
@@ -116,7 +121,16 @@ public class RoboRunner {
       String challengerBot, String challengeFilePath, int seasons) {
     Properties runnerProperties = loadRoboRunnerProperties();
     Set<String> robocodePaths = Sets.newHashSet(
-        runnerProperties.getProperty("robocodePaths").split(" *, *"));
+        Iterables.transform(Sets.newHashSet(
+            runnerProperties.getProperty("robocodePaths")
+            .replaceAll(SLASH + "+", SLASH)
+            .split(" *, *")),
+        new Function<String, String>() {
+          @Override
+          public String apply(String input) {
+            return input.replaceAll(SLASH + "$", "");
+          }
+        }));
     ChallengeConfig challenge = ChallengeConfig.load(challengeFilePath);
     return new RunnerConfig(robocodePaths, challenge, challengerBot, seasons);
   }
@@ -159,9 +173,9 @@ public class RoboRunner {
     for (BotSet botSet : allBots) {
       for (String bot : botSet.getBotNames()) {
         String botJar = getBotJarName(bot);
-        File sourceJar = new File("bots/" + botJar);
+        File sourceJar = new File("bots" + SLASH + botJar);
         for (String path : _config.robocodePaths) {
-          File jarFile = new File(path + "/robots/" + botJar);
+          File jarFile = new File(path + SLASH + "robots" + SLASH + botJar);
           if (!jarFile.exists()) {
             if (!sourceJar.exists()) {
               System.out.println(
@@ -246,7 +260,7 @@ public class RoboRunner {
 
   private Properties loadBattleData(String challengerBot) {
     Properties properties = new Properties();
-    File dataFile = new File(DATA_DIR + "/" + challengerBot + ".data");
+    File dataFile = new File(DATA_DIR + SLASH + challengerBot + ".data");
     if (dataFile.exists()) {
       try {
         properties.load(new FileInputStream(dataFile));
@@ -262,8 +276,8 @@ public class RoboRunner {
 
   private void saveBattleData(Properties battleData, String challengerBot) {
     try {
-      battleData.store(
-          new FileOutputStream(DATA_DIR + "/" + challengerBot + ".data"), null);
+      battleData.store(new FileOutputStream(
+          DATA_DIR + SLASH + challengerBot + ".data"), null);
     } catch (FileNotFoundException e) {
       e.printStackTrace();
     } catch (IOException e) {

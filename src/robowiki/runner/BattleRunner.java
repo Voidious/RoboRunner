@@ -21,7 +21,10 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 
 public class BattleRunner {
+  private static final String ROBORUNNER_JAR = "roborunner-0.4.0.jar";
   private static final Joiner COMMA_JOINER = Joiner.on(",");
+  private static final String SLASH = System.getProperty("file.separator");
+  private static final String COLON = System.getProperty("path.separator");
 
   private Queue<Process> _processQueue;
   private ExecutorService _threadPool;
@@ -46,8 +49,9 @@ public class BattleRunner {
     try {
       System.out.print("Initializing engine: " + enginePath + "... ");
       ProcessBuilder builder = new ProcessBuilder("java", "-Xmx512M", "-cp",
-          enginePath + "/libs/robocode.jar:./lib/guava-12.0.1.jar:"
-          + "./lib/roborunner-0.2.0.jar",
+          enginePath + SLASH + "libs" + SLASH + "robocode.jar" + COLON + "."
+          + SLASH + "lib" + SLASH + "guava-12.0.1.jar" + COLON + "." + SLASH
+          + "lib" + SLASH + ROBORUNNER_JAR,
           "robowiki.runner.BattleProcess", "-rounds", "" + _numRounds,
           "-width", "" + _battleFieldWidth, "-height", "" + _battleFieldHeight,
           "-path", enginePath);
