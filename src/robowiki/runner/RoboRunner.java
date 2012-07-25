@@ -37,6 +37,7 @@ public class RoboRunner {
 
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
+  private boolean _missingBots;
 
   public static void main(String[] args) {
     args = getCombinedArgs(args);
@@ -58,8 +59,13 @@ public class RoboRunner {
     }
 
     RoboRunner runner = new RoboRunner(challengerBot, challengeFile, seasons);
-    runner.runBattles();
-    runner.shutdown();
+    if (runner.isMissingBots()) {
+      System.out.println("Aborted due to missing bots.");
+      System.out.println();
+    } else {
+      runner.runBattles();
+      runner.shutdown();
+    }
   }
 
   private static void printHelp() {
@@ -85,7 +91,7 @@ public class RoboRunner {
     out.println("Format of the .rrc file is:");
     out.println("---");
     out.println("<Challenge name>");
-    out.println("{PERCENT_SCORE|BULLET_DAMAGE|PERCENT_FIRSTS}");
+    out.println("PERCENT_SCORE (more coming soon)");
     out.println("<Number of rounds>");
     out.println("<Battlefield width> (optional)");
     out.println("<Battlefield height> (optional)");
@@ -110,11 +116,13 @@ public class RoboRunner {
     _config = loadConfig(Preconditions.checkNotNull(challengerBot),
                          Preconditions.checkNotNull(challengeFilePath),
                          seasons);
+    _missingBots = false;
     copyBots();
-
-    _battleRunner = new BattleRunner(_config.robocodePaths,
-        _config.challenge.rounds, _config.challenge.battleFieldWidth,
-        _config.challenge.battleFieldHeight);
+    if (!isMissingBots()) {
+      _battleRunner = new BattleRunner(_config.robocodePaths,
+          _config.challenge.rounds, _config.challenge.battleFieldWidth,
+          _config.challenge.battleFieldHeight);
+    }
   }
 
   private RunnerConfig loadConfig(
@@ -178,6 +186,10 @@ public class RoboRunner {
           File jarFile = new File(path + SLASH + "robots" + SLASH + botJar);
           if (!jarFile.exists()) {
             if (!sourceJar.exists()) {
+              if (!_missingBots) {
+                System.out.println();
+              }
+              _missingBots = true;
               System.out.println(
                   "ERROR: Can't find " + sourceJar.getAbsolutePath());
             } else {
@@ -193,11 +205,17 @@ public class RoboRunner {
         }
       }
     }
-    System.out.println(" " + jarsCopied + " JAR copies done!");
+    if (!_missingBots) {
+      System.out.println(" " + jarsCopied + " JAR copies done!");
+    }
   }
 
   private String getBotJarName(String bot) {
     return bot.replaceAll(" ", "_") + ".jar";
+  }
+
+  public boolean isMissingBots() {
+    return _missingBots;
   }
 
   public void runBattles() {

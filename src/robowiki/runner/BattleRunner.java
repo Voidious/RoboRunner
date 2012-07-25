@@ -28,6 +28,7 @@ public class BattleRunner {
 
   private Queue<Process> _processQueue;
   private ExecutorService _threadPool;
+  private ExecutorService _resultPool;
   private int _numRounds;
   private int _battleFieldWidth;
   private int _battleFieldHeight;
@@ -39,6 +40,7 @@ public class BattleRunner {
     _battleFieldHeight = battleFieldHeight;
 
     _threadPool = Executors.newFixedThreadPool(robocodeEnginePaths.size());
+    _resultPool = Executors.newFixedThreadPool(1);
     _processQueue = Queues.newConcurrentLinkedQueue();
     for (String enginePath : robocodeEnginePaths) {
       initEngine(enginePath);
@@ -117,6 +119,7 @@ public class BattleRunner {
 
   public void shutdown() {
     _threadPool.shutdown();
+    _resultPool.shutdown();
   }
 
   public static class BotSet {
@@ -165,7 +168,7 @@ public class BattleRunner {
 
     @Override
     public String call() throws Exception {
-      long startTime = System.nanoTime();
+      final long startTime = System.nanoTime();
       Process battleProcess = _processQueue.poll();
       BufferedWriter writer = new BufferedWriter(
           new OutputStreamWriter(battleProcess.getOutputStream()));
@@ -178,10 +181,16 @@ public class BattleRunner {
         // TODO: How to handle other output, errors etc?
         input = reader.readLine();
       } while (!isBattleResult(input));
+      final String result = input;
       _processQueue.add(battleProcess);
-      _listener.processResults(
-          getRobotScoreMap(input), System.nanoTime() - startTime);
-      return input;
+      _resultPool.submit(new Runnable() {
+        @Override
+        public void run() {
+          _listener.processResults(
+              getRobotScoreMap(result), System.nanoTime() - startTime);
+        }
+      }).get();
+      return result;
     }
   }
 }
