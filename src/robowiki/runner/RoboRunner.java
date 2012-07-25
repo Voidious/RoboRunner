@@ -18,6 +18,7 @@ import java.util.Set;
 import robowiki.runner.BattleRunner.BattleResultHandler;
 import robowiki.runner.BattleRunner.BotSet;
 import robowiki.runner.BattleRunner.RobotScore;
+import robowiki.runner.ChallengeConfig.ScoringStyle;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -214,12 +215,22 @@ public class RoboRunner {
         // TODO: handle other types of scoring
         double aps =
             getAveragePercentScore(robotScoreMap, _config.challengerBot);
+        double firsts =
+            getAverageSurvivalRounds(robotScoreMap, _config.challengerBot);
+        double survival =
+            getAverageSurvivalScore(robotScoreMap, _config.challengerBot);
+        double bulletDamage =
+            getAverageBulletDamage(robotScoreMap, _config.challengerBot);
+        double energyConserved =
+            getAverageEnergyConserved(robotScoreMap, _config.challengerBot);
         String botList = getSortedBotList(robotScoreMap, _config.challengerBot);
-        addBattleScore(battleData, botList, aps);
+        addBattleScore(battleData, botList, aps, firsts, survival, bulletDamage,
+            energyConserved);
         saveBattleData(battleData, _config.challengerBot);
-        System.out.println("  vs " + botList.replace(",", ", ") + ": "
-            + round(aps, 2) + ", took " + formatBattleTime(nanoTime));
-        printOverallScore(battleData);
+        System.out.println("  " + _config.challengerBot + " vs " +
+            botList.replace(",", ", ") + ": " + round(aps, 2) + ", took "
+            + formatBattleTime(nanoTime));
+        printOverallScore(battleData, _config.challenge.scoringStyle);
       }
     });
 
@@ -260,7 +271,9 @@ public class RoboRunner {
     }
   }
 
-  private void printOverallScore(Properties battleData) {
+  private void printOverallScore(
+      Properties battleData, ScoringStyle scoringStyle) {
+    // TODO: print score based on scoring style
     double totalScore = 0;
     int totalBattles = 0;
     int scoredBotLists = 0;
@@ -269,7 +282,7 @@ public class RoboRunner {
       double score = Double.parseDouble(scores[0]);
       totalScore += score;
       scoredBotLists++;
-      totalBattles += Integer.parseInt(scores[1]);
+      totalBattles += Integer.parseInt(scores[5]);
     }
     int challengeBotLists = _config.challenge.referenceBots.size();
     System.out.println("Overall score: " + round(totalScore / scoredBotLists, 2)
@@ -301,30 +314,93 @@ public class RoboRunner {
   }
 
   private void addBattleScore(Properties battleData, String botList,
-      double newScore) {
+      double score, double firsts, double survival, double damage,
+      double energy) {
     if (battleData.containsKey(botList)) {
       String[] scores = battleData.getProperty(botList).split(":");
-      double score = Double.parseDouble(scores[0]);
-      int numBattles = Integer.parseInt(scores[1]);
-      String updatedScore = ((score * numBattles) + newScore) / (numBattles + 1)
-          + ":" + (numBattles + 1);
+      double oldScore = Double.parseDouble(scores[0]);
+      double oldFirsts = Double.parseDouble(scores[1]);
+      double oldSurvival = Double.parseDouble(scores[2]);
+      double oldBulletDamage = Double.parseDouble(scores[3]);
+      double oldEnergy = Double.parseDouble(scores[4]);
+      int numBattles = Integer.parseInt(scores[5]);
+      String updatedScore =
+          ((oldScore * numBattles) + score) / (numBattles + 1) + ":"
+          + ((oldFirsts * numBattles) + firsts) / (numBattles + 1) + ":"
+          + ((oldSurvival * numBattles) + survival) / (numBattles + 1) + ":"
+          + ((oldBulletDamage * numBattles) + damage) / (numBattles + 1) + ":"
+          + ((oldEnergy * numBattles) + energy) / (numBattles + 1) + ":"
+          + (numBattles + 1);
       battleData.setProperty(botList, updatedScore);
     } else {
-      battleData.put(botList, newScore + ":" + 1);
+      battleData.put(botList, score + ":" + firsts + ":" + survival + ":"
+          + damage + ":" + energy + ":" + 1);
     }
   }
 
   private double getAveragePercentScore(
       Map<String, RobotScore> scoreMap, String challengerBot) {
-    double totalAveragePercentScore = 0;
-    int challengerScore = scoreMap.get(_config.challengerBot).score;
-    for (Map.Entry<String, RobotScore> scoreEntry : scoreMap.entrySet()) {
-      if (!_config.challengerBot.equals(scoreEntry.getKey())) {
-        totalAveragePercentScore += 100 * (((double) challengerScore)
-            / (challengerScore + scoreEntry.getValue().score));
+    return getAverageScore(scoreMap, challengerBot, new Scorer() {
+      @Override
+      public double getScore(RobotScore robotScore) {
+        return robotScore.score;
+      }
+    });
+  }
+
+  private double getAverageSurvivalRounds(
+      Map<String, RobotScore> scoreMap, String challengerBot) {
+    return getAverageScore(scoreMap, challengerBot, new Scorer() {
+      @Override
+      public double getScore(RobotScore robotScore) {
+        return robotScore.survivalRounds;
+      }
+    });
+  }
+
+  private double getAverageSurvivalScore(
+      Map<String, RobotScore> scoreMap, String challengerBot) {
+    return getAverageScore(scoreMap, challengerBot, new Scorer() {
+      @Override
+      public double getScore(RobotScore robotScore) {
+        return robotScore.survivalScore;
+      }
+    });
+  }
+
+  private double getAverageBulletDamage(
+      Map<String, RobotScore> scoreMap, String challengerBot) {
+    return getAverageScore(scoreMap, challengerBot, new Scorer() {
+      @Override
+      public double getScore(RobotScore robotScore) {
+        return robotScore.bulletDamage;
+      }
+    });
+  }
+
+  private double getAverageEnergyConserved(
+      Map<String, RobotScore> scoreMap, String challengerBot) {
+    if (scoreMap.size() == 2) {
+      for (String bot : scoreMap.keySet()) {
+        if (!bot.equals(challengerBot)) {
+          return 100 - getAverageBulletDamage(scoreMap, bot);
+        }
       }
     }
-    return totalAveragePercentScore / (scoreMap.size() - 1);
+    return 0;
+  }
+
+  private double getAverageScore(
+      Map<String, RobotScore> scoreMap, String challengerBot, Scorer scorer) {
+    double totalScore = 0;
+    double challengerScore = scorer.getScore(scoreMap.get(challengerBot));
+    for (Map.Entry<String, RobotScore> scoreEntry : scoreMap.entrySet()) {
+      if (!challengerBot.equals(scoreEntry.getKey())) {
+        totalScore += 100 * (challengerScore
+            / (challengerScore + scorer.getScore(scoreEntry.getValue())));
+      }
+    }
+    return totalScore / (scoreMap.size() - 1);
   }
 
   private String getSortedBotList(
@@ -365,5 +441,9 @@ public class RoboRunner {
       this.challengerBot = Preconditions.checkNotNull(challengerBot);
       this.seasons = seasons;
     }
+  }
+
+  private static interface Scorer {
+    double getScore(RobotScore robotScore);
   }
 }
