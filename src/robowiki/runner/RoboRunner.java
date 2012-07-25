@@ -308,8 +308,7 @@ public class RoboRunner {
     Map<String, Integer> skipMap = Maps.newHashMap();
     for (String bot : battleData.stringPropertyNames()) {
       String propertyString = battleData.getProperty(bot);
-      int numBattles = Integer.parseInt(
-          propertyString.substring(propertyString.indexOf(":") + 1));
+      int numBattles = Integer.parseInt(propertyString.split(":")[5]);
       skipMap.put(bot, numBattles);
     }
     return skipMap;
