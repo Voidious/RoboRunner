@@ -24,7 +24,7 @@ public class BattleRunner {
   private static final Joiner COMMA_JOINER = Joiner.on(",");
 
   private Queue<Process> _processQueue;
-  private static ExecutorService _threadPool;
+  private ExecutorService _threadPool;
   private int _numRounds;
   private int _battleFieldWidth;
   private int _battleFieldHeight;
@@ -44,6 +44,7 @@ public class BattleRunner {
 
   private void initEngine(String enginePath) {
     try {
+      System.out.print("Initializing engine: " + enginePath + "... ");
       ProcessBuilder builder = new ProcessBuilder("java", "-Xmx512M", "-cp",
           enginePath + "/libs/robocode.jar:./lib/guava-12.0.1.jar:"
           + "./lib/roborunner-0.2.0.jar",
@@ -58,6 +59,7 @@ public class BattleRunner {
       do {
         processOutput = reader.readLine();
       } while (!processOutput.equals(BattleProcess.READY_SIGNAL));
+      System.out.println("done!");
       _processQueue.add(battleProcess);
     } catch (IOException e) {
       e.printStackTrace();
@@ -67,12 +69,12 @@ public class BattleRunner {
   public void runBattles(List<BotSet> botSets, BattleResultHandler handler) {
     List<Future<String>> futures = Lists.newArrayList();
     for (final BotSet botSet : botSets) {
-      futures.add(_threadPool.submit(newBattleCallable(botSet)));
+      futures.add(_threadPool.submit(newBattleCallable(botSet, handler)));
     }
+
     for (Future<String> future : futures) {
       try {
-        String battleResults = future.get();
-        handler.processResults(getRobotScoreMap(battleResults));
+        future.get();
       } catch (InterruptedException e) {
         e.printStackTrace();
       } catch (ExecutionException e) {
@@ -81,26 +83,9 @@ public class BattleRunner {
     }
   }
 
-  private Callable<String> newBattleCallable(final BotSet botSet) {
-    return new Callable<String>() {
-      @Override
-      public String call() throws Exception {
-        Process battleProcess = _processQueue.poll();
-        BufferedWriter writer = new BufferedWriter(
-            new OutputStreamWriter(battleProcess.getOutputStream()));
-        BufferedReader reader = new BufferedReader(
-            new InputStreamReader(battleProcess.getInputStream()));
-        writer.append(COMMA_JOINER.join(botSet.getBotNames()) + "\n");
-        writer.flush();
-        String input;
-        do {
-          // TODO: How to handle other output, errors etc?
-          input = reader.readLine();
-        } while (!isBattleResult(input));
-        _processQueue.add(battleProcess);
-        return input;
-      }
-    };
+  private Callable<String> newBattleCallable(
+      final BotSet botSet, final BattleResultHandler handler) {
+    return new BattleCallable(botSet, handler);
   }
 
   private Map<String, RobotScore> getRobotScoreMap(String battleResults) {
@@ -163,5 +148,34 @@ public class BattleRunner {
 
   public interface BattleResultHandler {
     void processResults(Map<String, RobotScore> robotScoreMap);
+  }
+
+  private class BattleCallable implements Callable<String> {
+    private BotSet _botSet;
+    private BattleResultHandler _listener;
+
+    public BattleCallable(BotSet botSet, BattleResultHandler listener) {
+      _botSet = botSet;
+      _listener = listener;
+    }
+
+    @Override
+    public String call() throws Exception {
+      Process battleProcess = _processQueue.poll();
+      BufferedWriter writer = new BufferedWriter(
+          new OutputStreamWriter(battleProcess.getOutputStream()));
+      BufferedReader reader = new BufferedReader(
+          new InputStreamReader(battleProcess.getInputStream()));
+      writer.append(COMMA_JOINER.join(_botSet.getBotNames()) + "\n");
+      writer.flush();
+      String input;
+      do {
+        // TODO: How to handle other output, errors etc?
+        input = reader.readLine();
+      } while (!isBattleResult(input));
+      _processQueue.add(battleProcess);
+      _listener.processResults(getRobotScoreMap(input));
+      return input;
+    }
   }
 }

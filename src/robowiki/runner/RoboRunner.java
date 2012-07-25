@@ -167,15 +167,18 @@ public class RoboRunner {
   private void printOverallScore(Properties battleData) {
     double totalScore = 0;
     int totalBattles = 0;
+    int scoredBotLists = 0;
     for (String botList : battleData.stringPropertyNames()) {
       String[] scores = battleData.getProperty(botList).split(":");
       double score = Double.parseDouble(scores[0]);
       totalScore += score;
+      scoredBotLists++;
       totalBattles += Integer.parseInt(scores[1]);
     }
-    int totalBotLists = _config.challenge.referenceBots.size();
-    System.out.println("Overall score: " + round(totalScore / totalBotLists, 2)
-        + ", " + round(((double) totalBattles) / totalBotLists, 2) + " seasons");
+    int challengeBotLists = _config.challenge.referenceBots.size();
+    System.out.println("Overall score: " + round(totalScore / scoredBotLists, 2)
+        + ", " + round(((double) totalBattles) / challengeBotLists, 2)
+        + " seasons");
   }
 
   private Map<String, Integer> getSkipMap(Properties battleData) {
