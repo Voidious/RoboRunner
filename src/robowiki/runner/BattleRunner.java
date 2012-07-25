@@ -46,9 +46,7 @@ public class BattleRunner {
   }
 
   private void initEngine(String enginePath) {
-    System.out.println("Initializing Robocode engine: " + enginePath);
     RobocodeEngine engine = new RobocodeEngine(new File(enginePath));
-    System.out.println("  Engine: " + engine + " (" + enginePath + ")");
     BattleListener listener = new BattleListener();
     engine.addBattleListener(listener);
     engine.setVisible(false);
@@ -80,7 +78,6 @@ public class BattleRunner {
       public Map<String, RobotResults> call() throws Exception {
         RobocodeEngine engine = _engineQueue.poll();
         BattleListener listener = _listeners.get(engine);
-        System.out.println("Robocode engine " + engine + ", listener " + listener);
         BattleSpecification battleSpec = new BattleSpecification(
             _numRounds, _battlefield, 
         engine.getLocalRepository(COMMA_JOINER.join(botSet.getBotNames())));

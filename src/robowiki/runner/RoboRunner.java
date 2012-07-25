@@ -1,5 +1,8 @@
 package robowiki.runner;
 
+import static robowiki.runner.RunnerUtil.getCombinedArgs;
+import static robowiki.runner.RunnerUtil.parseArgument;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -43,35 +46,6 @@ public class RoboRunner {
     RoboRunner runner = new RoboRunner(challengerBot, challengeFile, seasons);
     runner.runBattles();
     runner.shutdown();
-  }
-
-  private static String[] getCombinedArgs(String[] args) {
-    List<String> argsList = Lists.newArrayList();
-    String nextArg = "";
-    for (String arg : args) {
-      if (arg.startsWith("-")) {
-        if (!nextArg.equals("")) {
-          argsList.add(nextArg);
-          nextArg = "";
-        }
-        argsList.add(arg);
-      } else {
-        nextArg = (nextArg + " " + arg).trim();
-      }
-    }
-    if (!nextArg.equals("")) {
-      argsList.add(nextArg);
-    }
-    return argsList.toArray(new String[0]);
-  }
-
-  private static String parseArgument(String flagName, String[] args) {
-    for (int x = 0; x < args.length - 1; x++) {
-      if (args[x].equals("-" + flagName)) {
-        return args[x+1];
-      }
-    }
-    return null;
   }
 
   public RoboRunner(String challengerBot, String challengeFilePath,
