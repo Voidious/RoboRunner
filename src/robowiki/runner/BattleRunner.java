@@ -37,6 +37,7 @@ public class BattleRunner {
 
     _threadPool = Executors.newFixedThreadPool(robocodeEnginePaths.size());
     _processQueue = Queues.newConcurrentLinkedQueue();
+    System.out.println();
     for (String enginePath : robocodeEnginePaths) {
       initEngine(enginePath);
     }
@@ -147,7 +148,7 @@ public class BattleRunner {
   }
 
   public interface BattleResultHandler {
-    void processResults(Map<String, RobotScore> robotScoreMap);
+    void processResults(Map<String, RobotScore> robotScoreMap, long nanoTime);
   }
 
   private class BattleCallable implements Callable<String> {
@@ -161,6 +162,7 @@ public class BattleRunner {
 
     @Override
     public String call() throws Exception {
+      long startTime = System.nanoTime();
       Process battleProcess = _processQueue.poll();
       BufferedWriter writer = new BufferedWriter(
           new OutputStreamWriter(battleProcess.getOutputStream()));
@@ -174,7 +176,8 @@ public class BattleRunner {
         input = reader.readLine();
       } while (!isBattleResult(input));
       _processQueue.add(battleProcess);
-      _listener.processResults(getRobotScoreMap(input));
+      _listener.processResults(
+          getRobotScoreMap(input), System.nanoTime() - startTime);
       return input;
     }
   }

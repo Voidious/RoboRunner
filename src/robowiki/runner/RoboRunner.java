@@ -119,15 +119,16 @@ public class RoboRunner {
     }
     _battleRunner.runBattles(battleSet, new BattleResultHandler() {
       @Override
-      public void processResults(Map<String, RobotScore> robotScoreMap) {
+      public void processResults(
+          Map<String, RobotScore> robotScoreMap, long nanoTime) {
         // TODO: handle other types of scoring
         double aps =
             getAveragePercentScore(robotScoreMap, _config.challengerBot);
         String botList = getSortedBotList(robotScoreMap, _config.challengerBot);
         addBattleScore(battleData, botList, aps);
         saveBattleData(battleData, _config.challengerBot);
-        System.out.println("    vs " + botList.replace(",", ", ") + ": "
-            + round(aps, 2));
+        System.out.println("  vs " + botList.replace(",", ", ") + ": "
+            + round(aps, 2) + ", took " + formatBattleTime(nanoTime));
         printOverallScore(battleData);
       }
     });
@@ -135,6 +136,10 @@ public class RoboRunner {
     System.out.println();
     System.out.println("Done!");
     System.out.println();
+  }
+
+  protected String formatBattleTime(long nanoTime) {
+    return Double.toString(round((double) nanoTime / 1000000000, 1)) + "s";
   }
 
   private Properties loadBattleData(String challengerBot) {
