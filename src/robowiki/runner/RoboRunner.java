@@ -8,6 +8,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.io.Files;
 
 public class RoboRunner {
   private static final String PROPERTIES_FILENAME = "roborunner.properties";
@@ -34,18 +36,66 @@ public class RoboRunner {
 
   public static void main(String[] args) {
     args = getCombinedArgs(args);
-    String challengerBot =
-        Preconditions.checkNotNull(parseArgument("bot", args),
-            "Pass a bot with -bot, eg: rr.sh -bot voidious.Dookious 1.573c");
-    String challengeFile = Preconditions.checkNotNull(parseArgument("c", args),
-        "Pass a challenge file with -c, eg: rr.sh -c challenges/testbed.rrc");
-    int seasons = Integer.parseInt(
-        Preconditions.checkNotNull(parseArgument("seasons", args),
-            "Pass number of seasons with -seasons, eg: rr.sh -seasons 10"));
+    String challengerBot = parseArgument("bot", args,
+        "ERROR: Pass a bot with -bot, eg: -bot voidious.Dookious 1.573c");
+    String challengeFile = parseArgument("c", args,
+        "ERROR: Pass a challenge file with -c, eg: -c challenges/testbed.rrc");
+    int seasons = -1;
+    try {
+      seasons = Integer.parseInt(parseArgument("seasons", args,
+          "ERROR: Pass number of seasons with -seasons, eg: -seasons 10"));
+    } catch (NumberFormatException nfe) {
+      // semi-expected
+    }
+    if (challengerBot == null || challengeFile == null || seasons == -1) {
+      printHelp();
+      return;
+    }
 
     RoboRunner runner = new RoboRunner(challengerBot, challengeFile, seasons);
     runner.runBattles();
     runner.shutdown();
+  }
+
+  private static void printHelp() {
+    PrintStream out = System.out;
+    out.println();
+    out.println("Usage: rr.sh -bot package.BotName 1.2.3 "
+        + "-c challenge.rrc -seasons 25");
+    out.println();
+    out.println("Runs the challenger bot (-bot) against the challenge");
+    out.println("specified in the .rrc file (-c), iterating over the");
+    out.println("specified number of seasons (-seasons).");
+    out.println();
+    out.println("Robocode installs are specified in roborunner.properties.");
+    out.println("One thread is used for each install. JARs missing from their");
+    out.println("robots/ directories will be copied over from ./bots/, if");
+    out.println("present.");
+    out.println();
+    out.println("Guava library should be placed in the lib dir, and rr.sh");
+    out.println("must include it in the classpath. Available from:");
+    out.println("  http://code.google.com/p/guava-libraries/");
+    out.println();
+    out.println("Format of the .rrc file is:");
+    out.println("---");
+    out.println("<Challenge name>");
+    out.println("{PERCENT_SCORE|BULLET_DAMAGE|PERCENT_FIRSTS}");
+    out.println("<Number of rounds>");
+    out.println("<Battlefield width> (optional)");
+    out.println("<Battlefield height> (optional)");
+    out.println("package1.Bot1 1.0");
+    out.println("package2.Bot2 1.0");
+    out.println("package3.Bot3 1.0, package4.Bot4 1.0");
+    out.println("---");
+    out.println("Lines with opening or closing braces, as used in");
+    out.println("RoboResearch to specify scoring groups, are ignored. All");
+    out.println("scores are presently put into a single group. Lines with");
+    out.println("multiple, comma delimited bots will be run as melee battles");
+    out.println("with all the bots, with the score being the average");
+    out.println("pair-wise score between the challenger and each of the bots.");
+    out.println();
+    out.println("Happy Robocoding!");
+    out.println();
   }
 
   public RoboRunner(String challengerBot, String challengeFilePath,
@@ -54,6 +104,8 @@ public class RoboRunner {
     _config = loadConfig(Preconditions.checkNotNull(challengerBot),
                          Preconditions.checkNotNull(challengeFilePath),
                          seasons);
+    copyBots();
+
     _battleRunner = new BattleRunner(_config.robocodePaths,
         _config.challenge.rounds, _config.challenge.battleFieldWidth,
         _config.challenge.battleFieldHeight);
@@ -96,6 +148,43 @@ public class RoboRunner {
     }
   }
 
+  private void copyBots() {
+    System.out.println();
+    System.out.print("Copying missing bots...");
+    int jarsCopied = 0;
+    List<BotSet> allBots =
+        Lists.newArrayList(new BotSet(_config.challengerBot));
+    allBots.addAll(_config.challenge.referenceBots);
+    for (BotSet botSet : allBots) {
+      for (String bot : botSet.getBotNames()) {
+        String botJar = getBotJarName(bot);
+        File sourceJar = new File("bots/" + botJar);
+        for (String path : _config.robocodePaths) {
+          File jarFile = new File(path + "/robots/" + botJar);
+          if (!jarFile.exists()) {
+            if (!sourceJar.exists()) {
+              System.out.println(
+                  "ERROR: Can't find " + sourceJar.getAbsolutePath());
+            } else {
+              try {
+                System.out.print(".");
+                jarsCopied++;
+                Files.copy(sourceJar, jarFile);
+              } catch (IOException e) {
+                e.printStackTrace();
+              }
+            }
+          }
+        }
+      }
+    }
+    System.out.println(" " + jarsCopied + " JAR copies done!");
+  }
+
+  private String getBotJarName(String bot) {
+    return bot.replaceAll(" ", "_") + ".jar";
+  }
+
   public void runBattles() {
     System.out.println();
     System.out.println("Challenger: " + _config.challengerBot);
@@ -103,6 +192,7 @@ public class RoboRunner {
     System.out.println("Seasons:    " + _config.seasons);
     System.out.println("Threads:    " + _config.robocodePaths.size());
     System.out.println();
+    long startTime = System.nanoTime();
 
     final Properties battleData = loadBattleData(_config.challengerBot);
     Map<String, Integer> skipMap = getSkipMap(battleData);
@@ -134,7 +224,8 @@ public class RoboRunner {
     });
 
     System.out.println();
-    System.out.println("Done!");
+    System.out.println("Done! Took "
+        + formatBattleTime(System.nanoTime() - startTime));
     System.out.println();
   }
 

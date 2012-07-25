@@ -37,7 +37,6 @@ public class BattleRunner {
 
     _threadPool = Executors.newFixedThreadPool(robocodeEnginePaths.size());
     _processQueue = Queues.newConcurrentLinkedQueue();
-    System.out.println();
     for (String enginePath : robocodeEnginePaths) {
       initEngine(enginePath);
     }

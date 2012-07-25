@@ -25,11 +25,15 @@ public class RunnerUtil {
     return argsList.toArray(new String[0]);
   }
 
-  public static String parseArgument(String flagName, String[] args) {
+  public static String parseArgument(
+      String flagName, String[] args, String missingError) {
     for (int x = 0; x < args.length - 1; x++) {
       if (args[x].equals("-" + flagName)) {
         return args[x+1];
       }
+    }
+    if (missingError != null) {
+      System.out.println(missingError);
     }
     return null;
   }

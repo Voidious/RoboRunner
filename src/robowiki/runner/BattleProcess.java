@@ -16,7 +16,6 @@ import robocode.control.RobotResults;
 import robowiki.runner.BattleRunner.BotSet;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -38,18 +37,15 @@ public class BattleProcess {
 
   public static void main(String[] args) {
     args = getCombinedArgs(args);
-    String robocodePath =
-        Preconditions.checkNotNull(parseArgument("path", args),
-            "Pass a path to Robocode with -path");
-    int numRounds = Integer.parseInt(
-        Preconditions.checkNotNull(parseArgument("rounds", args),
-            "Pass number of rounds width with -rounds"));
-    int width = Integer.parseInt(
-        Preconditions.checkNotNull(parseArgument("width", args),
-            "Pass battlefield width with -width"));
-    int height = Integer.parseInt(
-        Preconditions.checkNotNull(parseArgument("height", args),
-            "Pass battlefield height with -height"));
+    String robocodePath = parseArgument("path", args,
+        "Pass a path to Robocode with -path");
+    int numRounds = Integer.parseInt(parseArgument("rounds", args,
+        "Pass number of rounds width with -rounds"));
+    int width = Integer.parseInt(parseArgument("width", args,
+        "Pass battlefield width with -width"));
+    int height = Integer.parseInt(parseArgument("height", args,
+        "Pass battlefield height with -height"));
+
     BattleProcess process =
         new BattleProcess(robocodePath, numRounds, width, height);
     System.out.println(READY_SIGNAL);
