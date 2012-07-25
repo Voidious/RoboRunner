@@ -14,9 +14,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import robocode.control.RobotResults;
 import robowiki.runner.BattleRunner.BattleResultHandler;
 import robowiki.runner.BattleRunner.BotSet;
+import robowiki.runner.BattleRunner.RobotScore;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -119,10 +119,11 @@ public class RoboRunner {
     }
     _battleRunner.runBattles(battleSet, new BattleResultHandler() {
       @Override
-      public void processResults(Map<String, RobotResults> resultsMap) {
+      public void processResults(Map<String, RobotScore> robotScoreMap) {
         // TODO: handle other types of scoring
-        double aps = getAveragePercentScore(resultsMap, _config.challengerBot);
-        String botList = getSortedBotList(resultsMap, _config.challengerBot);
+        double aps =
+            getAveragePercentScore(robotScoreMap, _config.challengerBot);
+        String botList = getSortedBotList(robotScoreMap, _config.challengerBot);
         addBattleScore(battleData, botList, aps);
         saveBattleData(battleData, _config.challengerBot);
         System.out.println("    vs " + botList.replace(",", ", ") + ": "
@@ -215,22 +216,21 @@ public class RoboRunner {
   }
 
   private double getAveragePercentScore(
-      Map<String, RobotResults> resultsMap, String challengerBot) {
+      Map<String, RobotScore> scoreMap, String challengerBot) {
     double totalAveragePercentScore = 0;
-    double challengerScore =
-        resultsMap.get(_config.challengerBot).getScore();
-    for (Map.Entry<String, RobotResults> results : resultsMap.entrySet()) {
-      if (!_config.challengerBot.equals(results.getKey())) {
-        totalAveragePercentScore += 100 * (challengerScore
-            / (challengerScore + results.getValue().getScore()));
+    int challengerScore = scoreMap.get(_config.challengerBot).score;
+    for (Map.Entry<String, RobotScore> scoreEntry : scoreMap.entrySet()) {
+      if (!_config.challengerBot.equals(scoreEntry.getKey())) {
+        totalAveragePercentScore += 100 * (((double) challengerScore)
+            / (challengerScore + scoreEntry.getValue().score));
       }
     }
-    return totalAveragePercentScore / (resultsMap.size() - 1);
+    return totalAveragePercentScore / (scoreMap.size() - 1);
   }
 
-  private String getSortedBotList(Map<String, RobotResults> resultsMap,
-      String challengerBot) {
-    List<String> botList = Lists.newArrayList(resultsMap.keySet());
+  private String getSortedBotList(
+      Map<String, RobotScore> scoreMap, String challengerBot) {
+    List<String> botList = Lists.newArrayList(scoreMap.keySet());
     botList.remove(challengerBot);
     return getSortedBotList(botList);
   }

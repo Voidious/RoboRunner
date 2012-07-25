@@ -1,7 +1,10 @@
 package robowiki.runner;
 
-import java.io.File;
-import java.util.HashMap;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -12,11 +15,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import robocode.control.BattleSpecification;
-import robocode.control.BattlefieldSpecification;
-import robocode.control.RobocodeEngine;
-import robocode.control.RobotResults;
-
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -25,44 +23,56 @@ import com.google.common.collect.Queues;
 public class BattleRunner {
   private static final Joiner COMMA_JOINER = Joiner.on(",");
 
-  private Queue<RobocodeEngine> _engineQueue;
+  private Queue<Process> _processQueue;
   private static ExecutorService _threadPool;
-  private Map<RobocodeEngine, BattleListener> _listeners;
-  private BattlefieldSpecification _battlefield;
   private int _numRounds;
+  private int _battleFieldWidth;
+  private int _battleFieldHeight;
 
   public BattleRunner(Set<String> robocodeEnginePaths, int numRounds,
       int battleFieldWidth, int battleFieldHeight) {
     _numRounds = numRounds;
-    _battlefield =
-        new BattlefieldSpecification(battleFieldWidth, battleFieldHeight);
+    _battleFieldWidth = battleFieldWidth;
+    _battleFieldHeight = battleFieldHeight;
 
     _threadPool = Executors.newFixedThreadPool(robocodeEnginePaths.size());
-    _engineQueue = Queues.newConcurrentLinkedQueue();
-    _listeners = Maps.newHashMap();
+    _processQueue = Queues.newConcurrentLinkedQueue();
     for (String enginePath : robocodeEnginePaths) {
       initEngine(enginePath);
     }
   }
 
   private void initEngine(String enginePath) {
-    RobocodeEngine engine = new RobocodeEngine(new File(enginePath));
-    BattleListener listener = new BattleListener();
-    engine.addBattleListener(listener);
-    engine.setVisible(false);
-    _engineQueue.add(engine);
-    _listeners.put(engine, listener);
+    try {
+      ProcessBuilder builder = new ProcessBuilder("java", "-Xmx512M", "-cp",
+          enginePath + "/libs/robocode.jar:./lib/guava-12.0.1.jar:"
+          + "./lib/roborunner-0.2.0.jar",
+          "robowiki.runner.BattleProcess", "-rounds", "" + _numRounds,
+          "-width", "" + _battleFieldWidth, "-height", "" + _battleFieldHeight,
+          "-path", enginePath);
+      builder.redirectErrorStream(true);
+      Process battleProcess = builder.start();
+      BufferedReader reader = new BufferedReader(
+          new InputStreamReader(battleProcess.getInputStream()));
+      String processOutput;
+      do {
+        processOutput = reader.readLine();
+      } while (!processOutput.equals(BattleProcess.READY_SIGNAL));
+      _processQueue.add(battleProcess);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 
   public void runBattles(List<BotSet> botSets, BattleResultHandler handler) {
-    List<Future<Map<String, RobotResults>>> futures = Lists.newArrayList();
+    List<Future<String>> futures = Lists.newArrayList();
     for (final BotSet botSet : botSets) {
       futures.add(_threadPool.submit(newBattleCallable(botSet)));
     }
-    for (Future<Map<String, RobotResults>> future : futures) {
+    for (Future<String> future : futures) {
       try {
-        Map<String, RobotResults> botResults = future.get();
-        handler.processResults(botResults);
+        String battleResults = future.get();
+        handler.processResults(getRobotScoreMap(battleResults));
       } catch (InterruptedException e) {
         e.printStackTrace();
       } catch (ExecutionException e) {
@@ -71,25 +81,49 @@ public class BattleRunner {
     }
   }
 
-  private Callable<Map<String, RobotResults>> newBattleCallable(
-      final BotSet botSet) {
-    return new Callable<Map<String, RobotResults>>() {
+  private Callable<String> newBattleCallable(final BotSet botSet) {
+    return new Callable<String>() {
       @Override
-      public Map<String, RobotResults> call() throws Exception {
-        RobocodeEngine engine = _engineQueue.poll();
-        BattleListener listener = _listeners.get(engine);
-        BattleSpecification battleSpec = new BattleSpecification(
-            _numRounds, _battlefield, 
-        engine.getLocalRepository(COMMA_JOINER.join(botSet.getBotNames())));
-        engine.runBattle(battleSpec, true);
-        _engineQueue.add(engine);
-        Thread.sleep(5000);
-        HashMap<String, RobotResults> resultsMap =
-            Maps.newHashMap(listener.getRobotResultsMap());
-        listener.clear();
-        return resultsMap;
+      public String call() throws Exception {
+        Process battleProcess = _processQueue.poll();
+        BufferedWriter writer = new BufferedWriter(
+            new OutputStreamWriter(battleProcess.getOutputStream()));
+        BufferedReader reader = new BufferedReader(
+            new InputStreamReader(battleProcess.getInputStream()));
+        writer.append(COMMA_JOINER.join(botSet.getBotNames()) + "\n");
+        writer.flush();
+        String input;
+        do {
+          // TODO: How to handle other output, errors etc?
+          input = reader.readLine();
+        } while (!isBattleResult(input));
+        _processQueue.add(battleProcess);
+        return input;
       }
     };
+  }
+
+  private Map<String, RobotScore> getRobotScoreMap(String battleResults) {
+    Map<String, RobotScore> scoreMap = Maps.newHashMap();
+    String[] botScores =
+        battleResults.replaceFirst(BattleProcess.RESULT_SIGNAL, "")
+        .replaceAll("\n", "").split(BattleProcess.BOT_DELIMITER);
+    for (String scoreString : botScores) {
+      String[] scoreFields = scoreString.split(BattleProcess.SCORE_DELIMITER);
+      String botName = scoreFields[0];
+      int score = Integer.parseInt(scoreFields[1]);
+      int firsts = Integer.parseInt(scoreFields[2]);
+      int survivalScore = Integer.parseInt(scoreFields[3]);
+      double bulletDamage = Double.parseDouble(scoreFields[4]);
+      RobotScore robotScore =
+          new RobotScore(score, firsts, survivalScore, bulletDamage);
+      scoreMap.put(botName, robotScore);
+    }
+    return scoreMap;
+  }
+
+  private boolean isBattleResult(String line) {
+    return line.startsWith(BattleProcess.RESULT_SIGNAL);
   }
 
   public void shutdown() {
@@ -112,7 +146,22 @@ public class BattleRunner {
     }
   }
 
+  public static class RobotScore {
+    public final int score;
+    public final int survivalRounds;
+    public final double survivalScore;
+    public final double bulletDamage;
+
+    public RobotScore(int score, int survivalRounds, double survivalScore,
+        double bulletDamage) {
+      this.score = score;
+      this.survivalRounds = survivalRounds;
+      this.survivalScore = survivalScore;
+      this.bulletDamage = bulletDamage;
+    }
+  }
+
   public interface BattleResultHandler {
-    void processResults(Map<String, RobotResults> resultsMap);
+    void processResults(Map<String, RobotScore> robotScoreMap);
   }
 }

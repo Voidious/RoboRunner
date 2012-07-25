@@ -22,8 +22,14 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 public class BattleProcess {
+  public static final String READY_SIGNAL = "BattleProcess ready";
+  public static final String RESULT_SIGNAL = "BATTLE RESULT: ";
+  public static final String BOT_DELIMITER = ":::";
+  public static final String SCORE_DELIMITER = "::";
+
   private static final Joiner COMMA_JOINER = Joiner.on(",");
-  private static final Joiner COLON_JOINER = Joiner.on(":::");
+  private static final Joiner COLON_JOINER = Joiner.on(BOT_DELIMITER);
+
 
   private BattlefieldSpecification _battlefield;
   private int _numRounds;
@@ -46,12 +52,15 @@ public class BattleProcess {
             "Pass battlefield height with -height"));
     BattleProcess process =
         new BattleProcess(robocodePath, numRounds, width, height);
+    System.out.println(READY_SIGNAL);
+    BufferedReader stdin =
+        new BufferedReader(new java.io.InputStreamReader(System.in));
     while (true) {
-      BufferedReader stdin = new BufferedReader(new java.io.InputStreamReader(System.in));
       try {
         String line = stdin.readLine();
+        System.out.println("Processing " + line);
         String result = process.runBattle(getBotSet(line));
-        System.out.println("BATTLE RESULT: " + result);
+        System.out.println(RESULT_SIGNAL + result);
       } catch (IOException e) {
         e.printStackTrace();
       }
@@ -87,8 +96,12 @@ public class BattleProcess {
   private String battleResultString(Map<String, RobotResults> resultsMap) {
     Set<String> resultStrings = Sets.newHashSet();
     for (Map.Entry<String, RobotResults> resultsEntry : resultsMap.entrySet()) {
-      resultStrings.add(resultsEntry.getKey() + "::"
-          + resultsEntry.getValue().getScore());
+      RobotResults results = resultsEntry.getValue();
+      resultStrings.add(resultsEntry.getKey() + SCORE_DELIMITER
+          + results.getScore() + SCORE_DELIMITER
+          + results.getFirsts() + SCORE_DELIMITER
+          + results.getSurvival() + SCORE_DELIMITER
+          + results.getBulletDamage());
     }
     return COLON_JOINER.join(resultStrings);
   }
