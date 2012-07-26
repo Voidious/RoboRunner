@@ -55,7 +55,7 @@ public class BattleProcess {
       try {
         String line = stdin.readLine();
         System.out.println("Processing " + line);
-        String result = process.runBattle(getBotSet(line));
+        String result = process.runBattle(getBotList(line));
         System.out.println(RESULT_SIGNAL + result);
       } catch (IOException e) {
         e.printStackTrace();
@@ -63,7 +63,7 @@ public class BattleProcess {
     }
   }
 
-  private static BotList getBotSet(String line) {
+  private static BotList getBotList(String line) {
     return new BotList(Lists.newArrayList(line.split(",")));
   }
 
@@ -78,10 +78,10 @@ public class BattleProcess {
     _engine.setVisible(false);
   }
 
-  public String runBattle(BotList botSet) {
+  public String runBattle(BotList botList) {
     BattleSpecification battleSpec = new BattleSpecification(
         _numRounds, _battlefield, 
-    _engine.getLocalRepository(COMMA_JOINER.join(botSet.getBotNames())));
+    _engine.getLocalRepository(COMMA_JOINER.join(botList.getBotNames())));
     _engine.runBattle(battleSpec, true);
     Map<String, RobotResults> resultsMap =
         Maps.newHashMap(_listener.getRobotResultsMap());
