@@ -29,7 +29,6 @@ public class BattleProcess {
   private static final Joiner COMMA_JOINER = Joiner.on(",");
   private static final Joiner COLON_JOINER = Joiner.on(BOT_DELIMITER);
 
-
   private BattlefieldSpecification _battlefield;
   private int _numRounds;
   private RobocodeEngine _engine;
