@@ -21,10 +21,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 
 public class BattleRunner {
-  private static final String ROBORUNNER_JAR = "roborunner-0.4.0.jar";
   private static final Joiner COMMA_JOINER = Joiner.on(",");
-  private static final String SLASH = System.getProperty("file.separator");
-  private static final String COLON = System.getProperty("path.separator");
 
   private Queue<Process> _processQueue;
   private ExecutorService _threadPool;
@@ -51,9 +48,7 @@ public class BattleRunner {
     try {
       System.out.print("Initializing engine: " + enginePath + "... ");
       ProcessBuilder builder = new ProcessBuilder("java", "-Xmx512M", "-cp",
-          enginePath + SLASH + "libs" + SLASH + "robocode.jar" + COLON + "."
-          + SLASH + "lib" + SLASH + "guava-12.0.1.jar" + COLON + "." + SLASH
-          + "lib" + SLASH + ROBORUNNER_JAR,
+          System.getProperty("java.class.path"),
           "robowiki.runner.BattleProcess", "-rounds", "" + _numRounds,
           "-width", "" + _battleFieldWidth, "-height", "" + _battleFieldHeight,
           "-path", enginePath);
@@ -72,10 +67,10 @@ public class BattleRunner {
     }
   }
 
-  public void runBattles(List<BotSet> botSets, BattleResultHandler handler) {
+  public void runBattles(List<BotList> botLists, BattleResultHandler handler) {
     List<Future<String>> futures = Lists.newArrayList();
-    for (final BotSet botSet : botSets) {
-      futures.add(_threadPool.submit(newBattleCallable(botSet, handler)));
+    for (final BotList botList : botLists) {
+      futures.add(_threadPool.submit(newBattleCallable(botList, handler)));
     }
 
     for (Future<String> future : futures) {
@@ -90,8 +85,8 @@ public class BattleRunner {
   }
 
   private Callable<String> newBattleCallable(
-      final BotSet botSet, final BattleResultHandler handler) {
-    return new BattleCallable(botSet, handler);
+      final BotList botList, final BattleResultHandler handler) {
+    return new BattleCallable(botList, handler);
   }
 
   private Map<String, RobotScore> getRobotScoreMap(String battleResults) {
@@ -122,14 +117,14 @@ public class BattleRunner {
     _resultPool.shutdown();
   }
 
-  public static class BotSet {
+  public static class BotList {
     private List<String> _botNames;
 
-    public BotSet(String botName) {
+    public BotList(String botName) {
       _botNames = Lists.newArrayList(botName);
     }
 
-    public BotSet(List<String> botNames) {
+    public BotList(List<String> botNames) {
       _botNames = Lists.newArrayList(botNames);
     }
 
@@ -158,11 +153,11 @@ public class BattleRunner {
   }
 
   private class BattleCallable implements Callable<String> {
-    private BotSet _botSet;
+    private BotList _botList;
     private BattleResultHandler _listener;
 
-    public BattleCallable(BotSet botSet, BattleResultHandler listener) {
-      _botSet = botSet;
+    public BattleCallable(BotList botList, BattleResultHandler listener) {
+      _botList = botList;
       _listener = listener;
     }
 
@@ -174,7 +169,7 @@ public class BattleRunner {
           new OutputStreamWriter(battleProcess.getOutputStream()));
       BufferedReader reader = new BufferedReader(
           new InputStreamReader(battleProcess.getInputStream()));
-      writer.append(COMMA_JOINER.join(_botSet.getBotNames()) + "\n");
+      writer.append(COMMA_JOINER.join(_botList.getBotNames()) + "\n");
       writer.flush();
       String input;
       do {

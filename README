@@ -1,0 +1,22 @@
+RoboRunner is a multi-threaded / multi-process Robocode battle runner.
+
+Installation overview:
+  * Unzip to a new directory, eg ~/roborunner
+  * Run setup.sh to clone an existing Robocode install. (Each thread
+    uses its own install.)
+  * Copy some bots into bots/ subdirectory.
+  * Configure a challenge in a .rrc file.
+  * Run some battles with rr.sh.
+
+See the output of rr.sh for help, or visit http://robowiki.net?RoboRunner
+for more detailed information.
+
+RoboRunner depends on Guava, Google's core libraries for Java, which you
+can grab here: http://code.google.com/p/guava-libraries/
+If you downloaded a RoboRunner binary installation, there's a Guava
+JAR already in the lib directory.
+
+You'll also need Robocode, of course: http://robocode.sourceforge.net/
+
+Happy Robocoding!
+

@@ -16,7 +16,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import robowiki.runner.BattleRunner.BattleResultHandler;
-import robowiki.runner.BattleRunner.BotSet;
+import robowiki.runner.BattleRunner.BotList;
 import robowiki.runner.BattleRunner.RobotScore;
 import robowiki.runner.ChallengeConfig.ScoringStyle;
 
@@ -175,11 +175,11 @@ public class RoboRunner {
     System.out.println();
     System.out.print("Copying missing bots...");
     int jarsCopied = 0;
-    List<BotSet> allBots =
-        Lists.newArrayList(new BotSet(_config.challengerBot));
+    List<BotList> allBots =
+        Lists.newArrayList(new BotList(_config.challengerBot));
     allBots.addAll(_config.challenge.referenceBots);
-    for (BotSet botSet : allBots) {
-      for (String bot : botSet.getBotNames()) {
+    for (BotList botList : allBots) {
+      for (String bot : botList.getBotNames()) {
         String botJar = getBotJarName(bot);
         File sourceJar = new File("bots" + SLASH + botJar);
         for (String path : _config.robocodePaths) {
@@ -229,14 +229,14 @@ public class RoboRunner {
 
     final Properties battleData = loadBattleData(_config.challengerBot);
     Map<String, Integer> skipMap = getSkipMap(battleData);
-    List<BotSet> battleSet = Lists.newArrayList();
+    List<BotList> battleSet = Lists.newArrayList();
     for (int x = 0; x < _config.seasons; x++) {
-      for (BotSet botSet : _config.challenge.referenceBots) {
+      for (BotList botList : _config.challenge.referenceBots) {
         List<String> battleBots = Lists.newArrayList(_config.challengerBot);
-        List<String> botNames = Lists.newArrayList(botSet.getBotNames());
+        List<String> botNames = Lists.newArrayList(botList.getBotNames());
         if (!skip(skipMap, botNames)) {
           battleBots.addAll(botNames);
-          battleSet.add(new BotSet(battleBots));
+          battleSet.add(new BotList(battleBots));
         }
       }
     }
@@ -259,9 +259,12 @@ public class RoboRunner {
         addBattleScore(battleData, botList, aps, firsts, survival, bulletDamage,
             energyConserved);
         saveBattleData(battleData, _config.challengerBot);
+
+        String[] botScores = battleData.getProperty(botList).split(":");
         System.out.println("  " + _config.challengerBot + " vs " +
             botList.replace(",", ", ") + ": " + round(aps, 2) + ", took "
-            + formatBattleTime(nanoTime));
+            + formatBattleTime(nanoTime) + ", avg: "
+            + round(Double.parseDouble(botScores[0]), 2));
         printOverallScore(battleData, _config.challenge.scoringStyle);
       }
     });
@@ -290,6 +293,31 @@ public class RoboRunner {
     }
 
     return properties;
+  }
+
+  private void addBattleScore(Properties battleData, String botList,
+      double score, double firsts, double survival, double damage,
+      double energy) {
+    if (battleData.containsKey(botList)) {
+      String[] scores = battleData.getProperty(botList).split(":");
+      double oldScore = Double.parseDouble(scores[0]);
+      double oldFirsts = Double.parseDouble(scores[1]);
+      double oldSurvival = Double.parseDouble(scores[2]);
+      double oldBulletDamage = Double.parseDouble(scores[3]);
+      double oldEnergy = Double.parseDouble(scores[4]);
+      int numBattles = Integer.parseInt(scores[5]);
+      String updatedScore =
+          ((oldScore * numBattles) + score) / (numBattles + 1) + ":"
+          + ((oldFirsts * numBattles) + firsts) / (numBattles + 1) + ":"
+          + ((oldSurvival * numBattles) + survival) / (numBattles + 1) + ":"
+          + ((oldBulletDamage * numBattles) + damage) / (numBattles + 1) + ":"
+          + ((oldEnergy * numBattles) + energy) / (numBattles + 1) + ":"
+          + (numBattles + 1);
+      battleData.setProperty(botList, updatedScore);
+    } else {
+      battleData.put(botList, score + ":" + firsts + ":" + survival + ":"
+          + damage + ":" + energy + ":" + 1);
+    }
   }
 
   private void saveBattleData(Properties battleData, String challengerBot) {
@@ -342,31 +370,6 @@ public class RoboRunner {
       }
     }
     return false;
-  }
-
-  private void addBattleScore(Properties battleData, String botList,
-      double score, double firsts, double survival, double damage,
-      double energy) {
-    if (battleData.containsKey(botList)) {
-      String[] scores = battleData.getProperty(botList).split(":");
-      double oldScore = Double.parseDouble(scores[0]);
-      double oldFirsts = Double.parseDouble(scores[1]);
-      double oldSurvival = Double.parseDouble(scores[2]);
-      double oldBulletDamage = Double.parseDouble(scores[3]);
-      double oldEnergy = Double.parseDouble(scores[4]);
-      int numBattles = Integer.parseInt(scores[5]);
-      String updatedScore =
-          ((oldScore * numBattles) + score) / (numBattles + 1) + ":"
-          + ((oldFirsts * numBattles) + firsts) / (numBattles + 1) + ":"
-          + ((oldSurvival * numBattles) + survival) / (numBattles + 1) + ":"
-          + ((oldBulletDamage * numBattles) + damage) / (numBattles + 1) + ":"
-          + ((oldEnergy * numBattles) + energy) / (numBattles + 1) + ":"
-          + (numBattles + 1);
-      battleData.setProperty(botList, updatedScore);
-    } else {
-      battleData.put(botList, score + ":" + firsts + ":" + survival + ":"
-          + damage + ":" + energy + ":" + 1);
-    }
   }
 
   private double getAveragePercentScore(

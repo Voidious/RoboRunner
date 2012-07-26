@@ -13,7 +13,7 @@ import robocode.control.BattleSpecification;
 import robocode.control.BattlefieldSpecification;
 import robocode.control.RobocodeEngine;
 import robocode.control.RobotResults;
-import robowiki.runner.BattleRunner.BotSet;
+import robowiki.runner.BattleRunner.BotList;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
@@ -63,8 +63,8 @@ public class BattleProcess {
     }
   }
 
-  private static BotSet getBotSet(String line) {
-    return new BotSet(Lists.newArrayList(line.split(",")));
+  private static BotList getBotSet(String line) {
+    return new BotList(Lists.newArrayList(line.split(",")));
   }
 
   public BattleProcess(String robocodePath, int numRounds,
@@ -78,7 +78,7 @@ public class BattleProcess {
     _engine.setVisible(false);
   }
 
-  public String runBattle(BotSet botSet) {
+  public String runBattle(BotList botSet) {
     BattleSpecification battleSpec = new BattleSpecification(
         _numRounds, _battlefield, 
     _engine.getLocalRepository(COMMA_JOINER.join(botSet.getBotNames())));

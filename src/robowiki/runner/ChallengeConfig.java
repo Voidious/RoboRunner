@@ -8,7 +8,7 @@ import java.util.List;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 
-import robowiki.runner.BattleRunner.BotSet;
+import robowiki.runner.BattleRunner.BotList;
 
 public class ChallengeConfig {
   public final String name;
@@ -16,11 +16,11 @@ public class ChallengeConfig {
   public final ScoringStyle scoringStyle;
   public final int battleFieldWidth;
   public final int battleFieldHeight;
-  public final List<BotSet> referenceBots;
+  public final List<BotList> referenceBots;
 
   public ChallengeConfig(String name, int rounds, ScoringStyle scoringStyle,
       int battleFieldWidth, int battleFieldHeight,
-      List<BotSet> referenceBots) {
+      List<BotList> referenceBots) {
     this.name = name;
     this.rounds = rounds;
     this.scoringStyle = scoringStyle;
@@ -37,7 +37,7 @@ public class ChallengeConfig {
       String name = fileLines.get(0);
       ScoringStyle scoringStyle = ScoringStyle.parseStyle(fileLines.get(1));
       int rounds = Integer.parseInt(fileLines.get(2));
-      List<BotSet> referenceBots = Lists.newArrayList();
+      List<BotList> referenceBots = Lists.newArrayList();
 
       Integer width = null;
       Integer height = null;
@@ -53,7 +53,7 @@ public class ChallengeConfig {
         } else if (line.length() > 0 && !line.contains("{")
             && !line.contains("}") && !line.contains("#")) {
           referenceBots.add(
-              new BotSet(Lists.newArrayList(line.split(" *, *"))));
+              new BotList(Lists.newArrayList(line.split(" *, *"))));
         }
       }
 
@@ -68,7 +68,10 @@ public class ChallengeConfig {
 
   public enum ScoringStyle {
     PERCENT_SCORE,
-    BULLET_DAMAGE;
+    SURVIVAL_FIRSTS,
+    SURVIVAL_SCORE,
+    BULLET_DAMAGE,
+    ENERGY_CONSERVED;
 
     public static ScoringStyle parseStyle(String styleString) {
       if (styleString.contains("PERCENT_SCORE")) {
