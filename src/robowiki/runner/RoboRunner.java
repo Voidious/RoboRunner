@@ -337,12 +337,15 @@ public class RoboRunner {
     double totalScore = 0;
     int totalBattles = 0;
     int scoredBotLists = 0;
-    for (String botList : battleData.stringPropertyNames()) {
-      String[] scores = battleData.getProperty(botList).split(":");
-      double score = Double.parseDouble(scores[0]);
-      totalScore += score;
-      scoredBotLists++;
-      totalBattles += Integer.parseInt(scores[5]);
+    for (BotList botList : _config.challenge.referenceBots) {
+      String botListString = getSortedBotList(botList.getBotNames());
+      if (battleData.containsKey(botListString)) {
+        String[] scores = battleData.getProperty(botListString).split(":");
+        double score = Double.parseDouble(scores[0]);
+        totalScore += score;
+        scoredBotLists++;
+        totalBattles += Integer.parseInt(scores[5]);
+      }
     }
     int challengeBotLists = _config.challenge.referenceBots.size();
     System.out.println("Overall score: " + round(totalScore / scoredBotLists, 2)
