@@ -133,21 +133,6 @@ public class BattleRunner {
     }
   }
 
-  public static class RobotScore {
-    public final int score;
-    public final int survivalRounds;
-    public final double survivalScore;
-    public final double bulletDamage;
-
-    public RobotScore(int score, int survivalRounds, double survivalScore,
-        double bulletDamage) {
-      this.score = score;
-      this.survivalRounds = survivalRounds;
-      this.survivalScore = survivalScore;
-      this.bulletDamage = bulletDamage;
-    }
-  }
-
   public interface BattleResultHandler {
     void processResults(Map<String, RobotScore> robotScoreMap, long nanoTime);
   }

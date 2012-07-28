@@ -67,21 +67,37 @@ public class ChallengeConfig {
   }
 
   public enum ScoringStyle {
-    PERCENT_SCORE,
-    SURVIVAL_FIRSTS,
-    SURVIVAL_SCORE,
-    BULLET_DAMAGE,
-    ENERGY_CONSERVED;
+    PERCENT_SCORE("APS"),
+    SURVIVAL_FIRSTS("Survival Rounds"),
+    SURVIVAL_SCORE("Survival Score"),
+    BULLET_DAMAGE("Bullet Damage"),
+    ENERGY_CONSERVED("Energy Conserved");
+
+    private String _description;
+
+    private ScoringStyle(String description) {
+      _description = description;
+    }
 
     public static ScoringStyle parseStyle(String styleString) {
       if (styleString.contains("PERCENT_SCORE")) {
         return PERCENT_SCORE;
       } else if (styleString.contains("BULLET_DAMAGE")) {
         return BULLET_DAMAGE;
+      } else if (styleString.contains("SURVIVAL_FIRSTS")) {
+        return SURVIVAL_FIRSTS;
+      } else if (styleString.contains("SURVIVAL_SCORE")) {
+        return SURVIVAL_SCORE;
+      } else if (styleString.contains("ENERGY_CONSERVED")) {
+        return ENERGY_CONSERVED;
       } else {
         throw new IllegalArgumentException(
             "Unrecognized scoring style: " + styleString);
       }
+    }
+
+    public String getDescription() {
+      return _description;
     }
   }
 }
