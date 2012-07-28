@@ -102,7 +102,7 @@ public class BattleRunner {
       int survivalScore = Integer.parseInt(scoreFields[3]);
       double bulletDamage = Double.parseDouble(scoreFields[4]);
       RobotScore robotScore =
-          new RobotScore(score, firsts, survivalScore, bulletDamage);
+          new RobotScore(botName, score, firsts, survivalScore, bulletDamage);
       scoreMap.put(botName, robotScore);
     }
     return scoreMap;

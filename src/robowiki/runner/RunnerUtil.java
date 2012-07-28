@@ -37,4 +37,12 @@ public class RunnerUtil {
     }
     return null;
   }
+
+  public static double round(double d, int i) {
+    long powerTen = 1;
+    for (int x = 0; x < i; x++) {
+      powerTen *= 10;
+    }
+    return ((double) Math.round(d * powerTen)) / powerTen;
+  }
 }
