@@ -116,9 +116,10 @@ public class RobotScore {
       totalEnergy += robotScore.energyConserved;
       numBattles += robotScore.numBattles;
     }
-    return new RobotScore(name, totalScore / robotScores.size(),
-        totalRounds / robotScores.size(), totalSurvival / robotScores.size(),
-        totalDamage / robotScores.size(), totalEnergy / robotScores.size());
+    int numScores = robotScores.size();
+    return new RobotScore(name, totalScore / numScores, totalRounds / numScores,
+        totalSurvival / numScores, totalDamage / numScores,
+        totalEnergy / numScores, numBattles / numScores);
   }
         
   public enum ScoringStyle {

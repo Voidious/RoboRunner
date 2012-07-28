@@ -265,8 +265,7 @@ public class RoboRunner {
             botList.replace(",", ", ") + ": "
             + round(scoringStyle.getScore(newScoreMap.get(TOTAL)), 2)
             + ", took " + formatBattleTime(elapsedTime) + ", avg: "
-            + round(scoringStyle.getScore(
-                currentScoreMap.get(TOTAL)), 2));
+            + round(scoringStyle.getScore(currentScoreMap.get(TOTAL)), 2));
         if (rawScoreMap.size() > 2) {
           printMeleeScores(
               newScoreMap, currentScoreMap, challenger, scoringStyle);
@@ -379,16 +378,18 @@ public class RoboRunner {
     Map<String, RobotScore> scoreMap = Maps.newHashMap();
     String[] scoreStrings = battleData.getProperty(botList).split(BOT_DELIMITER);
     for (String scoreString : scoreStrings) {
-      String[] scores = scoreString.split(SCORE_DELIMITER);
-      String botName = scores[0];
-      double oldScore = Double.parseDouble(scores[1]);
-      double oldFirsts = Double.parseDouble(scores[2]);
-      double oldSurvival = Double.parseDouble(scores[3]);
-      double oldBulletDamage = Double.parseDouble(scores[4]);
-      double oldEnergy = Double.parseDouble(scores[5]);
-      int numBattles = Integer.parseInt(scores[6]);
-      scoreMap.put(botName, new RobotScore(botName, oldScore, oldFirsts,
-          oldSurvival, oldBulletDamage, oldEnergy, numBattles));
+      if (!scoreString.equals(TOTAL)) {
+        String[] scores = scoreString.split(SCORE_DELIMITER);
+        String botName = scores[0];
+        double oldScore = Double.parseDouble(scores[1]);
+        double oldFirsts = Double.parseDouble(scores[2]);
+        double oldSurvival = Double.parseDouble(scores[3]);
+        double oldBulletDamage = Double.parseDouble(scores[4]);
+        double oldEnergy = Double.parseDouble(scores[5]);
+        int numBattles = Integer.parseInt(scores[6]);
+        scoreMap.put(botName, new RobotScore(botName, oldScore, oldFirsts,
+            oldSurvival, oldBulletDamage, oldEnergy, numBattles));
+      }
     }
     scoreMap.put(TOTAL, RobotScore.totalScore(scoreMap.values(), TOTAL));
     return scoreMap;
@@ -431,7 +432,7 @@ public class RoboRunner {
       ScoringStyle scoringStyle) {
     for (String enemy : newScoreMap.keySet()) {
       if (!enemy.equals(challenger) && !enemy.equals(TOTAL)) {
-        // TODO: add raw scores
+        // TODO: show raw score fields too
         System.out.println("    vs " + enemy + ": "
             + round(scoringStyle.getScore(newScoreMap.get(enemy)), 2)
             + ", avg: "
@@ -449,8 +450,8 @@ public class RoboRunner {
             scoreMap, challenger, RobotScore.SURVIVAL_FIRSTS_SCORER, enemies),
         getAverageScore(
             scoreMap, challenger, RobotScore.SURVIVAL_SCORER, enemies),
-        getAverageBulletDamage(scoreMap, _config.challengerBot),
-        getAverageEnergyConserved(scoreMap, _config.challengerBot));
+        getAverageBulletDamage(scoreMap, challenger),
+        getAverageEnergyConserved(scoreMap, challenger));
   }
 
   private double getAverageBulletDamage(Map<String, RobotScore> scoreMap,
