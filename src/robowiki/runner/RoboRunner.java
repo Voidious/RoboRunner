@@ -17,7 +17,7 @@ import java.util.Set;
 
 import robowiki.runner.BattleRunner.BattleResultHandler;
 import robowiki.runner.BattleRunner.BotList;
-import robowiki.runner.ChallengeConfig.ScoringStyle;
+import robowiki.runner.RobotScore.ScoringStyle;
 
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
@@ -91,7 +91,7 @@ public class RoboRunner {
     out.println("---");
     out.println("<Challenge name>");
     out.println("{PERCENT_SCORE|SURVIVAL_FIRSTS|SURVIVAL_SCORE|BULLET_DAMAGE|"
-        + "ENERGY_CONSERVED}");
+        + "MOVEMENT_CHALLENGE}");
     out.println("<Number of rounds>");
     out.println("<Battlefield width> (optional)");
     out.println("<Battlefield height> (optional)");
@@ -247,15 +247,17 @@ public class RoboRunner {
       public void processResults(
           Map<String, RobotScore> robotScoreMap, long nanoTime) {
         String challenger = _config.challengerBot;
+        ScoringStyle scoringStyle = _config.challenge.scoringStyle;
         String botList = getSortedBotList(robotScoreMap, challenger);
         RobotScore newScore = getRobotScore(robotScoreMap, challenger);
         RobotScore currentScore = addBattleScore(battleData, botList, newScore);
         saveBattleData(battleData, challenger);
 
         System.out.println("  " + challenger + " vs " +
-            botList.replace(",", ", ") + ": " + round(newScore.score, 2)
+            botList.replace(",", ", ") + ": "
+            + round(scoringStyle.getScore(newScore), 2)
             + ", took " + formatBattleTime(nanoTime) + ", avg: "
-            + round(currentScore.score, 2));
+            + round(scoringStyle.getScore(currentScore), 2));
         printOverallScore(battleData, _config.challenge.scoringStyle);
       }
     });
@@ -346,18 +348,16 @@ public class RoboRunner {
 
   private void printOverallScore(
       Properties battleData, ScoringStyle scoringStyle) {
-    // TODO: print score based on scoring style
     double totalScore = 0;
     int totalBattles = 0;
     int scoredBotLists = 0;
     for (BotList botList : _config.challenge.referenceBots) {
       String botListString = getSortedBotList(botList.getBotNames());
       if (battleData.containsKey(botListString)) {
-        String[] scores = battleData.getProperty(botListString).split(":");
-        double score = Double.parseDouble(scores[0]);
-        totalScore += score;
+        RobotScore robotScore = loadScore(battleData, botListString);
+        totalScore += scoringStyle.getScore(robotScore);
         scoredBotLists++;
-        totalBattles += Integer.parseInt(scores[5]);
+        totalBattles += robotScore.numBattles;
       }
     }
     int challengeBotLists = _config.challenge.referenceBots.size();
@@ -390,46 +390,23 @@ public class RoboRunner {
 
   private double getAveragePercentScore(
       Map<String, RobotScore> scoreMap, String challengerBot) {
-    return getAverageScore(scoreMap, challengerBot,
-        new Function<RobotScore, Double>() {
-          @Override
-          public Double apply(RobotScore robotScore) {
-            return robotScore.score;
-          }
-        });
+    return getAverageScore(scoreMap, challengerBot, RobotScore.NORMAL_SCORER);
   }
 
   private double getAverageSurvivalRounds(
       Map<String, RobotScore> scoreMap, String challengerBot) {
     return getAverageScore(scoreMap, challengerBot,
-        new Function<RobotScore, Double>() {
-          @Override
-          public Double apply(RobotScore robotScore) {
-            return robotScore.survivalRounds;
-          }
-        });
+        RobotScore.SURVIVAL_FIRSTS_SCORER);
   }
 
   private double getAverageSurvivalScore(
       Map<String, RobotScore> scoreMap, String challengerBot) {
-    return getAverageScore(scoreMap, challengerBot,
-        new Function<RobotScore, Double>() {
-          @Override
-          public Double apply(RobotScore robotScore) {
-            return robotScore.survivalScore;
-          }
-        });
+    return getAverageScore(scoreMap, challengerBot, RobotScore.SURVIVAL_SCORER);
   }
 
   private double getAverageBulletDamage(
       Map<String, RobotScore> scoreMap, String challengerBot) {
-    return getAverageScore(scoreMap, challengerBot,
-        new Function<RobotScore, Double>() {
-          @Override
-          public Double apply(RobotScore robotScore) {
-            return robotScore.bulletDamage;
-          }
-        });
+    return scoreMap.get(challengerBot).bulletDamage / _config.challenge.rounds;
   }
 
   private double getAverageEnergyConserved(

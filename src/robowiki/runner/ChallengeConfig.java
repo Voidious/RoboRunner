@@ -5,10 +5,11 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.List;
 
+import robowiki.runner.BattleRunner.BotList;
+import robowiki.runner.RobotScore.ScoringStyle;
+
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
-
-import robowiki.runner.BattleRunner.BotList;
 
 public class ChallengeConfig {
   public final String name;
@@ -35,12 +36,15 @@ public class ChallengeConfig {
       List<String> fileLines = Files.readLines(
           new File(challengeFilePath), Charset.defaultCharset());
       String name = fileLines.get(0);
-      ScoringStyle scoringStyle = ScoringStyle.parseStyle(fileLines.get(1));
-      int rounds = Integer.parseInt(fileLines.get(2));
+      ScoringStyle scoringStyle =
+          ScoringStyle.parseStyle(fileLines.get(1).trim());
+      int rounds = Integer.parseInt(
+          fileLines.get(2).toLowerCase().replaceAll("rounds", "").trim());
       List<BotList> referenceBots = Lists.newArrayList();
 
       Integer width = null;
       Integer height = null;
+      int maxBots = 1;
       for (int x = 3; x < fileLines.size(); x++) {
         String line = fileLines.get(x).trim();
         if (line.matches("^\\d+$")) {
@@ -52,9 +56,16 @@ public class ChallengeConfig {
           }
         } else if (line.length() > 0 && !line.contains("{")
             && !line.contains("}") && !line.contains("#")) {
-          referenceBots.add(
-              new BotList(Lists.newArrayList(line.split(" *, *"))));
+          List<String> botList = Lists.newArrayList(line.split(" *, *"));
+          maxBots = Math.max(maxBots, 1 + botList.size());
+          referenceBots.add(new BotList(botList));
         }
+      }
+
+      if (scoringStyle == ScoringStyle.MOVEMENT_CHALLENGE
+          && maxBots > 2) {
+        throw new RuntimeException("Movement Challenge scoring doesn't work "
+            + "for battles with more than 2 bots.");
       }
 
       return new ChallengeConfig(name, rounds, scoringStyle,
@@ -64,40 +75,5 @@ public class ChallengeConfig {
       e.printStackTrace();
     }
     return null;
-  }
-
-  public enum ScoringStyle {
-    PERCENT_SCORE("APS"),
-    SURVIVAL_FIRSTS("Survival Rounds"),
-    SURVIVAL_SCORE("Survival Score"),
-    BULLET_DAMAGE("Bullet Damage"),
-    ENERGY_CONSERVED("Energy Conserved");
-
-    private String _description;
-
-    private ScoringStyle(String description) {
-      _description = description;
-    }
-
-    public static ScoringStyle parseStyle(String styleString) {
-      if (styleString.contains("PERCENT_SCORE")) {
-        return PERCENT_SCORE;
-      } else if (styleString.contains("BULLET_DAMAGE")) {
-        return BULLET_DAMAGE;
-      } else if (styleString.contains("SURVIVAL_FIRSTS")) {
-        return SURVIVAL_FIRSTS;
-      } else if (styleString.contains("SURVIVAL_SCORE")) {
-        return SURVIVAL_SCORE;
-      } else if (styleString.contains("ENERGY_CONSERVED")) {
-        return ENERGY_CONSERVED;
-      } else {
-        throw new IllegalArgumentException(
-            "Unrecognized scoring style: " + styleString);
-      }
-    }
-
-    public String getDescription() {
-      return _description;
-    }
   }
 }
