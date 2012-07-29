@@ -18,6 +18,7 @@ import java.util.Set;
 
 import robowiki.runner.BattleRunner.BattleResultHandler;
 import robowiki.runner.BattleRunner.BotList;
+import robowiki.runner.ChallengeConfig.BotListGroup;
 import robowiki.runner.RobotScore.ScoringStyle;
 
 import com.google.common.base.Function;
@@ -101,16 +102,22 @@ public class RoboRunner {
     out.println("<Number of rounds>");
     out.println("<Battlefield width> (optional)");
     out.println("<Battlefield height> (optional)");
-    out.println("package1.Bot1 1.0");
-    out.println("package2.Bot2 1.0");
-    out.println("package3.Bot3 1.0, package4.Bot4 1.0");
+    out.println("Easy Bots {");
+    out.println("  package1.Bot1 1.0");
+    out.println("  package2.Bot2 1.0");
+    out.println("  package3.Bot3 1.0, package4.Bot4 1.0");
+    out.println("}");
+    out.println("Hard Bots {");
+    out.println("  package3.Bot3 1.0");
+    out.println("  package4.Bot4 1.0");
+    out.println("}");
     out.println("---");
-    out.println("Lines with opening or closing braces, as used in");
-    out.println("RoboResearch to specify scoring groups, are ignored. All");
-    out.println("scores are presently put into a single group. Lines with");
-    out.println("multiple, comma delimited bots will be run as melee battles");
-    out.println("with all the bots, with the score being the average");
-    out.println("pair-wise score between the challenger and each of the bots.");
+    out.println("You don't need to separate bots into groups, but you can. If");
+    out.println(" you do and you have more than one group, overall score is");
+    out.println(" the average of the group scores. Lines with multiple,");
+    out.println(" comma delimited bots are run as melee battles against all");
+    out.println(" the bots. The challenger's score is the average pair-wise");
+    out.println(" score between the challenger and each of the bots.");
     out.println();
     out.println("Happy Robocoding!");
     out.println();
@@ -183,7 +190,7 @@ public class RoboRunner {
     int jarsCopied = 0;
     List<BotList> allBots =
         Lists.newArrayList(new BotList(_config.challengerBot));
-    allBots.addAll(_config.challenge.referenceBots);
+    allBots.addAll(_config.challenge.allReferenceBots);
     for (BotList botList : allBots) {
       for (String bot : botList.getBotNames()) {
         String botJar = getBotJarName(bot);
@@ -239,7 +246,7 @@ public class RoboRunner {
     Map<String, Integer> skipMap = getSkipMap(battleData);
     List<BotList> battleSet = Lists.newArrayList();
     for (int x = 0; x < _config.seasons; x++) {
-      for (BotList botList : _config.challenge.referenceBots) {
+      for (BotList botList : _config.challenge.allReferenceBots) {
         List<String> battleBots = Lists.newArrayList(_config.challengerBot);
         List<String> botNames = Lists.newArrayList(botList.getBotNames());
         if (!skip(skipMap, botNames)) {
@@ -408,23 +415,56 @@ public class RoboRunner {
 
   private void printOverallScore(
       Properties battleData, ScoringStyle scoringStyle) {
-    double totalScore = 0;
-    int totalBattles = 0;
+    ChallengeConfig challenge = _config.challenge;
+    ScoreSummary scoreSummary = getScoreSummary(
+        battleData, challenge.allReferenceBots, scoringStyle);
+    int challengeBotLists = challenge.allReferenceBots.size();
+    double numSeasons =
+        round(((double) scoreSummary.numBattles) / challengeBotLists, 2);
+    double overallScore;
+    StringBuilder groupScores = new StringBuilder();
+    if (challenge.hasGroups()) {
+      double sumGroups = 0;
+      int scoredGroups = 0;
+      for (BotListGroup group : challenge.referenceBotGroups) {
+        ScoreSummary summary = getScoreSummary(
+            battleData, group.referenceBots, scoringStyle);
+        double groupScore = summary.getTotalScore();
+        groupScores.append("  ").append(group.name).append(": ")
+            .append(groupScore).append("\n");
+        sumGroups += groupScore;
+        scoredGroups++;
+      }
+      ScoreSummary overallSummary =
+          new ScoreSummary(sumGroups, scoredGroups, scoredGroups);
+      overallScore = overallSummary.getTotalScore();
+    } else {
+      overallScore = scoreSummary.getTotalScore();
+    }
+
+    System.out.println("Overall score: " + overallScore
+        + ", " + numSeasons + " seasons");
+    if (groupScores.length() > 0) {
+      System.out.println(groupScores.toString());
+    }
+  }
+
+  private ScoreSummary getScoreSummary(Properties battleData,
+      List<BotList> referenceBots, ScoringStyle scoringStyle) {
+    double sumScores = 0;
+    int numBattles = 0;
     int scoredBotLists = 0;
-    for (BotList botList : _config.challenge.referenceBots) {
+    for (BotList botList : referenceBots) {
       String botListString = getSortedBotList(botList.getBotNames());
       if (battleData.containsKey(botListString)) {
         Map<String, RobotScore> scoreMap = loadScoreMap(battleData, botListString);
         RobotScore totalRobotScore = scoreMap.get(TOTAL);
-        totalScore += scoringStyle.getScore(totalRobotScore);
+        sumScores += scoringStyle.getScore(totalRobotScore);
         scoredBotLists++;
-        totalBattles += totalRobotScore.numBattles;
+        numBattles += totalRobotScore.numBattles;
       }
     }
-    int challengeBotLists = _config.challenge.referenceBots.size();
-    System.out.println("Overall score: " + round(totalScore / scoredBotLists, 2)
-        + ", " + round(((double) totalBattles) / challengeBotLists, 2)
-        + " seasons");
+    return new ScoreSummary(sumScores, numBattles, scoredBotLists);
   }
 
   private void printMeleeScores(Map<String, RobotScore> newScoreMap,
@@ -521,6 +561,23 @@ public class RoboRunner {
       this.challenge = challenge;
       this.challengerBot = Preconditions.checkNotNull(challengerBot);
       this.seasons = seasons;
+    }
+  }
+
+  private static class ScoreSummary {
+    public final double sumScores;
+    public final int numBattles;
+    public final int scoredBotLists;
+
+    public ScoreSummary(
+        double sumScores, int numBattles, int scoredBotLists) {
+      this.sumScores = sumScores;
+      this.numBattles = numBattles;
+      this.scoredBotLists = scoredBotLists;
+    }
+
+    public double getTotalScore() {
+      return round(sumScores / scoredBotLists, 2);
     }
   }
 }
