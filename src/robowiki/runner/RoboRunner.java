@@ -232,22 +232,25 @@ public class RoboRunner {
   }
 
   public void runBattles() {
+    final ChallengeConfig challenge = _config.challenge;
+    final String challengerBot = _config.challengerBot;
+
     System.out.println();
-    System.out.println("Challenger: " + _config.challengerBot);
-    System.out.println("Challenge:  " + _config.challenge.name);
+    System.out.println("Challenger: " + challengerBot);
+    System.out.println("Challenge:  " + challenge.name);
     System.out.println("Seasons:    " + _config.seasons);
     System.out.println("Threads:    " + _config.robocodePaths.size());
     System.out.println("Scoring:    "
-        + _config.challenge.scoringStyle.getDescription());
+        + challenge.scoringStyle.getDescription());
     System.out.println();
     long startTime = System.nanoTime();
 
-    final Properties battleData = loadBattleData(_config.challengerBot);
+    final Properties battleData = loadBattleData(challengerBot);
     Map<String, Integer> skipMap = getSkipMap(battleData);
     List<BotList> battleSet = Lists.newArrayList();
     for (int x = 0; x < _config.seasons; x++) {
-      for (BotList botList : _config.challenge.allReferenceBots) {
-        List<String> battleBots = Lists.newArrayList(_config.challengerBot);
+      for (BotList botList : challenge.allReferenceBots) {
+        List<String> battleBots = Lists.newArrayList(challengerBot);
         List<String> botNames = Lists.newArrayList(botList.getBotNames());
         if (!skip(skipMap, botNames)) {
           battleBots.addAll(botNames);
@@ -255,12 +258,13 @@ public class RoboRunner {
         }
       }
     }
+
+    final ScoringStyle scoringStyle = challenge.scoringStyle;
     _battleRunner.runBattles(battleSet, new BattleResultHandler() {
       @Override
       public void processResults(
           Map<String, RobotScore> rawScoreMap, long elapsedTime) {
-        String challenger = _config.challengerBot;
-        ScoringStyle scoringStyle = _config.challenge.scoringStyle;
+        String challenger = challengerBot;
         String botList = getSortedBotList(rawScoreMap, challenger);
         Map<String, RobotScore> newScoreMap =
             processScoreMap(rawScoreMap, challenger);
@@ -277,13 +281,17 @@ public class RoboRunner {
           printMeleeScores(
               newScoreMap, currentScoreMap, challenger, scoringStyle);
         }
-        printOverallScore(battleData, scoringStyle);
+        printOverallScore(battleData, challenge);
       }
     });
 
     System.out.println();
     System.out.println("Done! Took "
         + formatBattleTime(System.nanoTime() - startTime));
+    System.out.println();
+    printAllScores(battleData, challenge);
+    System.out.println();
+    printOverallScore(battleData, challenge);
     System.out.println();
   }
 
@@ -414,10 +422,9 @@ public class RoboRunner {
   }
 
   private void printOverallScore(
-      Properties battleData, ScoringStyle scoringStyle) {
-    ChallengeConfig challenge = _config.challenge;
+      Properties battleData, ChallengeConfig challenge) {
     ScoreSummary scoreSummary = getScoreSummary(
-        battleData, challenge.allReferenceBots, scoringStyle);
+        battleData, challenge.allReferenceBots, challenge.scoringStyle);
     int challengeBotLists = challenge.allReferenceBots.size();
     double numSeasons =
         round(((double) scoreSummary.numBattles) / challengeBotLists, 2);
@@ -428,7 +435,7 @@ public class RoboRunner {
       int scoredGroups = 0;
       for (BotListGroup group : challenge.referenceBotGroups) {
         ScoreSummary summary = getScoreSummary(
-            battleData, group.referenceBots, scoringStyle);
+            battleData, group.referenceBots, challenge.scoringStyle);
         double groupScore = summary.getTotalScore();
         groupScores.append("  ").append(group.name).append(": ")
             .append(groupScore).append("\n");
@@ -465,6 +472,21 @@ public class RoboRunner {
       }
     }
     return new ScoreSummary(sumScores, numBattles, scoredBotLists);
+  }
+
+  private void printAllScores(
+      Properties battleData, ChallengeConfig challenge) {
+    System.out.println("All scores:");
+    for (BotList botList : challenge.allReferenceBots) {
+      String botListString = getSortedBotList(botList.getBotNames());
+      if (battleData.containsKey(botListString)) {
+        Map<String, RobotScore> scoreMap =
+            loadScoreMap(battleData, botListString);
+        RobotScore totalRobotScore = scoreMap.get(TOTAL);
+        System.out.println("  " + botListString + ": "
+            + round(challenge.scoringStyle.getScore(totalRobotScore), 2));
+      }
+    }
   }
 
   private void printMeleeScores(Map<String, RobotScore> newScoreMap,
