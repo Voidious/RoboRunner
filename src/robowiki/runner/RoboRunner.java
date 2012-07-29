@@ -82,7 +82,8 @@ public class RoboRunner {
     out.println();
     out.println("Runs the challenger bot (-bot) against the challenge");
     out.println("specified in the .rrc file (-c), iterating over the");
-    out.println("specified number of seasons (-seasons).");
+    out.println("specified number of seasons (-seasons). Run 0 seasons to see");
+    out.println("challenge scores without running any battles.");
     out.println();
     out.println("Robocode installs are specified in roborunner.properties.");
     out.println("One thread is used for each install. JARs missing from their");
@@ -113,11 +114,11 @@ public class RoboRunner {
     out.println("}");
     out.println("---");
     out.println("You don't need to separate bots into groups, but you can. If");
-    out.println(" you do and you have more than one group, overall score is");
-    out.println(" the average of the group scores. Lines with multiple,");
-    out.println(" comma delimited bots are run as melee battles against all");
-    out.println(" the bots. The challenger's score is the average pair-wise");
-    out.println(" score between the challenger and each of the bots.");
+    out.println("you do and you have more than one group, overall score is");
+    out.println("the average of the group scores. Lines with multiple,");
+    out.println("comma delimited bots are run as melee battles against all");
+    out.println("the bots. The challenger's score is the average pair-wise");
+    out.println("score between the challenger and each of the bots.");
     out.println();
     out.println("Happy Robocoding!");
     out.println();
@@ -125,16 +126,17 @@ public class RoboRunner {
 
   public RoboRunner(String challengerBot, String challengeFilePath,
       int seasons) {
-    Preconditions.checkArgument(seasons > 0);
     _config = loadConfig(Preconditions.checkNotNull(challengerBot),
                          Preconditions.checkNotNull(challengeFilePath),
                          seasons);
-    _missingBots = false;
-    copyBots();
-    if (!isMissingBots()) {
-      _battleRunner = new BattleRunner(_config.robocodePaths,
-          _config.challenge.rounds, _config.challenge.battleFieldWidth,
-          _config.challenge.battleFieldHeight);
+    if (seasons > 0) {
+      _missingBots = false;
+      copyBots();
+      if (!isMissingBots()) {
+        _battleRunner = new BattleRunner(_config.robocodePaths,
+            _config.challenge.rounds, _config.challenge.battleFieldWidth,
+            _config.challenge.battleFieldHeight);
+      }
     }
   }
 
@@ -260,35 +262,37 @@ public class RoboRunner {
     }
 
     final ScoringStyle scoringStyle = challenge.scoringStyle;
-    _battleRunner.runBattles(battleSet, new BattleResultHandler() {
-      @Override
-      public void processResults(
-          Map<String, RobotScore> rawScoreMap, long elapsedTime) {
-        String botList = getSortedBotList(rawScoreMap, challenger);
-        Map<String, RobotScore> newScoreMap =
-            processScoreMap(rawScoreMap, challenger);
-        Map<String, RobotScore> currentScoreMap =
-            addBattleScore(battleData, botList, newScoreMap);
-        saveBattleData(battleData, challenger);
-
-        System.out.println("  " + challenger + " vs " +
-            botList.replace(",", ", ") + ": "
-            + round(scoringStyle.getScore(newScoreMap.get(TOTAL)), 2)
-            + ", took " + formatBattleTime(elapsedTime) + ", avg: "
-            + round(scoringStyle.getScore(currentScoreMap.get(TOTAL)), 2));
-        if (rawScoreMap.size() > 2) {
-          printMeleeScores(
-              newScoreMap, currentScoreMap, challenger, scoringStyle);
+    if (_config.seasons > 0) {
+      _battleRunner.runBattles(battleSet, new BattleResultHandler() {
+        @Override
+        public void processResults(
+            Map<String, RobotScore> rawScoreMap, long elapsedTime) {
+          String botList = getSortedBotList(rawScoreMap, challenger);
+          Map<String, RobotScore> newScoreMap =
+              processScoreMap(rawScoreMap, challenger);
+          Map<String, RobotScore> currentScoreMap =
+              addBattleScore(battleData, botList, newScoreMap);
+          saveBattleData(battleData, challenger);
+  
+          System.out.println("  " + challenger + " vs " +
+              botList.replace(",", ", ") + ": "
+              + round(scoringStyle.getScore(newScoreMap.get(TOTAL)), 2)
+              + ", took " + formatBattleTime(elapsedTime) + ", avg: "
+              + round(scoringStyle.getScore(currentScoreMap.get(TOTAL)), 2));
+          if (rawScoreMap.size() > 2) {
+            printMeleeScores(
+                newScoreMap, currentScoreMap, challenger, scoringStyle);
+          }
+          printOverallScores(
+              battleData, challenger, challenge, scoringStyle.isChallenge());
         }
-        printOverallScores(
-            battleData, challenger, challenge, scoringStyle.isChallenge());
-      }
-    });
+      });
+      System.out.println();
+      System.out.println("Done! Took "
+          + formatBattleTime(System.nanoTime() - startTime));
+      System.out.println();
+    }
 
-    System.out.println();
-    System.out.println("Done! Took "
-        + formatBattleTime(System.nanoTime() - startTime));
-    System.out.println();
     printAllScores(battleData, challenge);
     System.out.println();
     printOverallScores(
@@ -586,7 +590,9 @@ public class RoboRunner {
   }
 
   public void shutdown() {
-    _battleRunner.shutdown();
+    if (_battleRunner != null) {
+      _battleRunner.shutdown();
+    }
   }
 
   private static class RunnerConfig {
