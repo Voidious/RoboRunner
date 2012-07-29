@@ -123,19 +123,21 @@ public class RobotScore {
   }
         
   public enum ScoringStyle {
-    PERCENT_SCORE("Average Percent Score", NORMAL_SCORER),
-    SURVIVAL_FIRSTS("Survival Firsts", SURVIVAL_FIRSTS_SCORER),
-    SURVIVAL_SCORE("Survival Score", SURVIVAL_SCORER),
-    BULLET_DAMAGE("Bullet Damage", BULLET_DAMAGE_SCORER),
-    MOVEMENT_CHALLENGE("Movement Challenge", MOVEMENT_CHALLENGE_SCORER);
+    PERCENT_SCORE("Average Percent Score", NORMAL_SCORER, false),
+    SURVIVAL_FIRSTS("Survival Firsts", SURVIVAL_FIRSTS_SCORER, false),
+    SURVIVAL_SCORE("Survival Score", SURVIVAL_SCORER, false),
+    BULLET_DAMAGE("Bullet Damage", BULLET_DAMAGE_SCORER, true),
+    MOVEMENT_CHALLENGE("Movement Challenge", MOVEMENT_CHALLENGE_SCORER, true);
 
     private String _description;
     private Function<RobotScore, Double> _scorer;
+    private boolean _isChallenge;
 
-    private ScoringStyle(
-        String description, Function<RobotScore, Double> scorer) {
+    private ScoringStyle(String description,
+        Function<RobotScore, Double> scorer, boolean isChallenge) {
       _description = description;
       _scorer = scorer;
+      _isChallenge = isChallenge;
     }
 
     public static ScoringStyle parseStyle(String styleString) {
@@ -158,6 +160,10 @@ public class RobotScore {
 
     public String getDescription() {
       return _description;
+    }
+
+    public boolean isChallenge() {
+      return _isChallenge;
     }
 
     public double getScore(RobotScore score) {

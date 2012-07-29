@@ -233,10 +233,10 @@ public class RoboRunner {
 
   public void runBattles() {
     final ChallengeConfig challenge = _config.challenge;
-    final String challengerBot = _config.challengerBot;
+    final String challenger = _config.challengerBot;
 
     System.out.println();
-    System.out.println("Challenger: " + challengerBot);
+    System.out.println("Challenger: " + challenger);
     System.out.println("Challenge:  " + challenge.name);
     System.out.println("Seasons:    " + _config.seasons);
     System.out.println("Threads:    " + _config.robocodePaths.size());
@@ -245,12 +245,12 @@ public class RoboRunner {
     System.out.println();
     long startTime = System.nanoTime();
 
-    final Properties battleData = loadBattleData(challengerBot);
+    final Properties battleData = loadBattleData(challenger);
     Map<String, Integer> skipMap = getSkipMap(battleData);
     List<BotList> battleSet = Lists.newArrayList();
     for (int x = 0; x < _config.seasons; x++) {
       for (BotList botList : challenge.allReferenceBots) {
-        List<String> battleBots = Lists.newArrayList(challengerBot);
+        List<String> battleBots = Lists.newArrayList(challenger);
         List<String> botNames = Lists.newArrayList(botList.getBotNames());
         if (!skip(skipMap, botNames)) {
           battleBots.addAll(botNames);
@@ -264,7 +264,6 @@ public class RoboRunner {
       @Override
       public void processResults(
           Map<String, RobotScore> rawScoreMap, long elapsedTime) {
-        String challenger = challengerBot;
         String botList = getSortedBotList(rawScoreMap, challenger);
         Map<String, RobotScore> newScoreMap =
             processScoreMap(rawScoreMap, challenger);
@@ -281,7 +280,8 @@ public class RoboRunner {
           printMeleeScores(
               newScoreMap, currentScoreMap, challenger, scoringStyle);
         }
-        printOverallScore(battleData, challenge);
+        printOverallScores(
+            battleData, challenger, challenge, scoringStyle.isChallenge());
       }
     });
 
@@ -291,7 +291,8 @@ public class RoboRunner {
     System.out.println();
     printAllScores(battleData, challenge);
     System.out.println();
-    printOverallScore(battleData, challenge);
+    printOverallScores(
+        battleData, challenger, challenge, scoringStyle.isChallenge());
     System.out.println();
   }
 
@@ -421,24 +422,36 @@ public class RoboRunner {
     return BOT_JOINER.join(scoreStrings);
   }
 
-  private void printOverallScore(
-      Properties battleData, ChallengeConfig challenge) {
+  private void printOverallScores(Properties battleData,
+      String challenger, ChallengeConfig challenge, boolean printWikiFormat) {
+    ScoringStyle scoringStyle = challenge.scoringStyle;
     ScoreSummary scoreSummary = getScoreSummary(
-        battleData, challenge.allReferenceBots, challenge.scoringStyle);
+        battleData, challenge.allReferenceBots, scoringStyle);
     int challengeBotLists = challenge.allReferenceBots.size();
     double numSeasons =
         round(((double) scoreSummary.numBattles) / challengeBotLists, 2);
     double overallScore;
     StringBuilder groupScores = new StringBuilder();
+    StringBuilder wikiScores = new StringBuilder();
+    wikiScores.append("| [[").append(
+            challenger.replaceAll("^[^ ]*\\.", "").replace(" ", "]] "))
+        .append(" || [[User:Author|Author]] || Type || ");
     if (challenge.hasGroups()) {
       double sumGroups = 0;
       int scoredGroups = 0;
       for (BotListGroup group : challenge.referenceBotGroups) {
+        for (BotList botList : group.referenceBots) {
+          Map<String, RobotScore> scoreMap =
+              loadScoreMap(battleData, getSortedBotList(botList.getBotNames()));
+          double score = round(scoringStyle.getScore(scoreMap.get(TOTAL)), 2);
+          wikiScores.append(score).append(" || ");
+        }
         ScoreSummary summary = getScoreSummary(
-            battleData, group.referenceBots, challenge.scoringStyle);
+            battleData, group.referenceBots, scoringStyle);
         double groupScore = summary.getTotalScore();
         groupScores.append("  ").append(group.name).append(": ")
             .append(groupScore).append("\n");
+        wikiScores.append("'''").append(groupScore).append("''' || ");
         sumGroups += groupScore;
         scoredGroups++;
       }
@@ -451,8 +464,13 @@ public class RoboRunner {
 
     System.out.println("Overall score: " + overallScore
         + ", " + numSeasons + " seasons");
+    wikiScores.append("'''").append(overallScore).append("''' || ");
+    wikiScores.append(numSeasons).append(" seasons");
     if (groupScores.length() > 0) {
       System.out.println(groupScores.toString());
+    }
+    if (printWikiFormat) {
+      System.out.println("Wiki format: " + wikiScores.toString());
     }
   }
 
