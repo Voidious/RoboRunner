@@ -396,7 +396,8 @@ public class RoboRunner {
   private Map<String, RobotScore> loadScoreMap(
       Properties battleData, String botList) {
     Map<String, RobotScore> scoreMap = Maps.newHashMap();
-    String[] scoreStrings = battleData.getProperty(botList).split(BOT_DELIMITER);
+    String[] scoreStrings =
+        battleData.getProperty(botList).split(BOT_DELIMITER);
     for (String scoreString : scoreStrings) {
       if (!scoreString.equals(TOTAL)) {
         String[] scores = scoreString.split(SCORE_DELIMITER);
@@ -445,9 +446,13 @@ public class RoboRunner {
       int scoredGroups = 0;
       for (BotListGroup group : challenge.referenceBotGroups) {
         for (BotList botList : group.referenceBots) {
-          Map<String, RobotScore> scoreMap =
-              loadScoreMap(battleData, getSortedBotList(botList.getBotNames()));
-          double score = round(scoringStyle.getScore(scoreMap.get(TOTAL)), 2);
+          String botListString = getSortedBotList(botList.getBotNames());
+          double score = -1;
+          if (battleData.containsKey(botListString)) {
+            Map<String, RobotScore> scoreMap =
+                loadScoreMap(battleData, botListString);
+            score = round(scoringStyle.getScore(scoreMap.get(TOTAL)), 2);
+          }
           wikiScores.append(score).append(" || ");
         }
         ScoreSummary summary = getScoreSummary(
@@ -456,8 +461,10 @@ public class RoboRunner {
         groupScores.append("  ").append(group.name).append(": ")
             .append(groupScore).append("\n");
         wikiScores.append("'''").append(groupScore).append("''' || ");
-        sumGroups += groupScore;
-        scoredGroups++;
+        if (summary.scoredBotLists > 0) {
+          sumGroups += groupScore;
+          scoredGroups++;
+        }
       }
       ScoreSummary overallSummary =
           new ScoreSummary(sumGroups, scoredGroups, scoredGroups);
@@ -475,6 +482,7 @@ public class RoboRunner {
     }
     if (printWikiFormat) {
       System.out.println("Wiki format: " + wikiScores.toString());
+      System.out.println();
     }
   }
 
