@@ -59,12 +59,22 @@ public class RoboRunner {
     } catch (NumberFormatException nfe) {
       // semi-expected
     }
+    int threads = -1;
+    String threadsArg = parseArgument("t", args);
+    if (threadsArg != null) {
+      try {
+        threads = Integer.parseInt(threadsArg);
+      } catch (NumberFormatException nfe) {
+        // semi-expected
+      }
+    }
     if (challengerBot == null || challengeFile == null || seasons == -1) {
       printHelp();
       return;
     }
 
-    RoboRunner runner = new RoboRunner(challengerBot, challengeFile, seasons);
+    RoboRunner runner =
+        new RoboRunner(challengerBot, challengeFile, seasons, threads);
     if (runner.isMissingBots()) {
       System.out.println("Aborted due to missing bots.");
       System.out.println();
@@ -78,15 +88,17 @@ public class RoboRunner {
     PrintStream out = System.out;
     out.println();
     out.println("Usage: rr.sh -bot package.BotName 1.2.3 "
-        + "-c challenge.rrc -seasons 25");
+        + "-c challenge.rrc -seasons 25 -t 5");
     out.println();
     out.println("Runs the challenger bot (-bot) against the challenge");
     out.println("specified in the .rrc file (-c), iterating over the");
-    out.println("specified number of seasons (-seasons). Run 0 seasons to see");
+    out.println("specified number of seasons (-seasons), using the specified ");
+    out.println("number of threads (-t, optional). Run 0 seasons to see");
     out.println("challenge scores without running any battles.");
     out.println();
     out.println("Robocode installs are specified in roborunner.properties.");
-    out.println("One thread is used for each install. JARs missing from their");
+    out.println("By default, one thread is used for each install. Use -t to");
+    out.println("specify a number of threads. JARs missing from the");
     out.println("robots" + SLASH + " directories will be copied over from ."
         + SLASH + "bots" + SLASH + ", if");
     out.println("present.");
@@ -125,10 +137,10 @@ public class RoboRunner {
   }
 
   public RoboRunner(String challengerBot, String challengeFilePath,
-      int seasons) {
+      int seasons, int threads) {
     _config = loadConfig(Preconditions.checkNotNull(challengerBot),
                          Preconditions.checkNotNull(challengeFilePath),
-                         seasons);
+                         seasons, threads);
     if (seasons > 0) {
       _missingBots = false;
       copyBots();
@@ -140,20 +152,28 @@ public class RoboRunner {
     }
   }
 
-  private RunnerConfig loadConfig(
-      String challengerBot, String challengeFilePath, int seasons) {
+  private RunnerConfig loadConfig(String challengerBot,
+      String challengeFilePath, int seasons, int threads) {
     Properties runnerProperties = loadRoboRunnerProperties();
-    Set<String> robocodePaths = Sets.newHashSet(
-        Iterables.transform(Sets.newHashSet(
-            runnerProperties.getProperty("robocodePaths")
-            .replaceAll(SLASH + "+", SLASH)
-            .split(" *, *")),
+    Iterable<String> pathsIterator = Iterables.transform(
+        Lists.newArrayList(runnerProperties.getProperty("robocodePaths")
+            .replaceAll(SLASH + "+", SLASH).split(" *, *")),
         new Function<String, String>() {
           @Override
           public String apply(String input) {
             return input.replaceAll(SLASH + "$", "");
           }
-        }));
+        });
+
+    Set<String> robocodePaths = Sets.newHashSet();
+    for (String path : pathsIterator) {
+      if (threads > 0 && robocodePaths.size() == threads) {
+        break;
+      } else {
+        robocodePaths.add(path);
+      }
+    }
+
     ChallengeConfig challenge = ChallengeConfig.load(challengeFilePath);
     return new RunnerConfig(robocodePaths, challenge, challengerBot, seasons);
   }
