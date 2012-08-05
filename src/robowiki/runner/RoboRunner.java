@@ -128,9 +128,12 @@ public class RoboRunner {
     out.println("the bots. The challenger's score is the average pair-wise");
     out.println("score between the challenger and each of the bots.");
     out.println();
-    out.println("You can customize the JVM arguments passed to the Robocode");
-    out.println("battle processes by editing the jvmArgs property in");
-    out.println("roborunner.properties.");
+    out.println("Things you can configure in roborunner.properties:");
+    out.println("  robocodePaths=<comma delimited list of Robocode installs>");
+    out.println("  jvmArgs=<space delimited list of JVM args to battle "
+    		+ "processes>");
+    out.println("  botsDirs=<comma delimited list of dirs to look for bot "
+        + "JARs>");
     out.println();
     out.println("Guava library should be placed in the lib dir, and rr.sh");
     out.println("must include it in the classpath. Available from:");
@@ -147,7 +150,7 @@ public class RoboRunner {
                          seasons, threads);
     if (seasons > 0) {
       _missingBots = false;
-      copyBots();
+      copyBots(_config.botsDirs);
       if (!isMissingBots()) {
         _battleRunner = new BattleRunner(_config.robocodePaths,
             _config.jvmArgs, _config.challenge.rounds,
@@ -180,9 +183,11 @@ public class RoboRunner {
     }
 
     String jvmArgs = runnerProperties.getProperty("jvmArgs");
+    List<String> botsDirs = Lists.newArrayList(
+        runnerProperties.getProperty("botsDirs").trim().split(" *, *"));
     ChallengeConfig challenge = ChallengeConfig.load(challengeFilePath);
     return new RunnerConfig(
-        robocodePaths, jvmArgs, challenge, challengerBot, seasons);
+        robocodePaths, jvmArgs, botsDirs, challenge, challengerBot, seasons);
   }
 
   private Properties loadRoboRunnerProperties() {
@@ -213,7 +218,7 @@ public class RoboRunner {
     }
   }
 
-  private void copyBots() {
+  private void copyBots(List<String> botsDirs) {
     System.out.println();
     System.out.print("Copying missing bots...");
     int jarsCopied = 0;
@@ -223,17 +228,22 @@ public class RoboRunner {
     for (BotList botList : allBots) {
       for (String bot : botList.getBotNames()) {
         String botJar = getBotJarName(bot);
-        File sourceJar = new File("bots" + SLASH + botJar);
+        File sourceJar = null;
+        for (String botsDir : botsDirs) {
+          File potentialSourceJar = new File(botsDir + SLASH + botJar);
+          if (potentialSourceJar.exists()) {
+            sourceJar = potentialSourceJar;
+          }
+        }
         for (String path : _config.robocodePaths) {
           File jarFile = new File(path + SLASH + "robots" + SLASH + botJar);
           if (!jarFile.exists()) {
-            if (!sourceJar.exists()) {
+            if (sourceJar == null) {
               if (!_missingBots) {
                 System.out.println();
               }
               _missingBots = true;
-              System.out.println(
-                  "ERROR: Can't find " + sourceJar.getAbsolutePath());
+              System.out.println("ERROR: Can't find " + botJar);
             } else {
               try {
                 System.out.print(".");
@@ -633,14 +643,17 @@ public class RoboRunner {
   private static class RunnerConfig {
     public final Set<String> robocodePaths;
     public final String jvmArgs;
+    public final List<String> botsDirs;
     public final ChallengeConfig challenge;
     public final String challengerBot;
     public final int seasons;
 
     public RunnerConfig(Set<String> robocodePaths, String jvmArgs,
-        ChallengeConfig challenge, String challengerBot, int seasons) {
+        List<String> botsDirs, ChallengeConfig challenge, String challengerBot,
+        int seasons) {
       this.robocodePaths = Preconditions.checkNotNull(robocodePaths);
       this.jvmArgs = Preconditions.checkNotNull(jvmArgs);
+      this.botsDirs = Preconditions.checkNotNull(botsDirs);
       this.challenge = Preconditions.checkNotNull(challenge);
       this.challengerBot = Preconditions.checkNotNull(challengerBot);
       this.seasons = seasons;
