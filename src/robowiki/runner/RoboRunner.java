@@ -98,14 +98,13 @@ public class RoboRunner {
     out.println("challenge scores without running any battles.");
     out.println();
     out.println("Robocode installs are specified in roborunner.properties.");
-    out.println("By default, one thread is used for each install. Use -t to");
-    out.println("specify a number of threads. JARs missing from the");
-    out.println("robots" + SLASH + " directories will be copied over from ."
-        + SLASH + "bots" + SLASH + ", if");
-    out.println("present.");
+    out.println("By default, one thread is used for each install. JARs");
+    out.println("missing from the robots" + SLASH + " directories will be");
+    out.println("copied over from ." + SLASH + "bots" + SLASH + ", if"
+        + "present.");
     out.println();
     out.println("Format of the .rrc file is:");
-    out.println("---");
+    out.println("------");
     out.println("<Challenge name>");
     out.println("{PERCENT_SCORE|SURVIVAL_FIRSTS|SURVIVAL_SCORE|BULLET_DAMAGE|"
         + "MOVEMENT_CHALLENGE}");
@@ -121,7 +120,7 @@ public class RoboRunner {
     out.println("  package3.Bot3 1.0");
     out.println("  package4.Bot4 1.0");
     out.println("}");
-    out.println("---");
+    out.println("------");
     out.println("You don't need to separate bots into groups, but you can. If");
     out.println("you do and you have more than one group, overall score is");
     out.println("the average of the group scores. Lines with multiple,");
@@ -518,8 +517,15 @@ public class RoboRunner {
       overallScore = scoreSummary.getTotalScore();
     }
 
+    String botsFaced = "";
+    if (scoreSummary.scoredBotLists < challenge.allReferenceBots.size()) {
+      double percentBotsFaced = 100 * ((double) scoreSummary.scoredBotLists)
+          / challenge.allReferenceBots.size();
+      botsFaced = "  (" + round(Math.min(percentBotsFaced, 99.9), 1)
+          + "% bots faced)";
+    }
     System.out.println("Overall score: " + overallScore
-        + ", " + numSeasons + " seasons");
+        + ", " + numSeasons + " seasons" + botsFaced);
     wikiScores.append("'''").append(overallScore).append("''' || ");
     wikiScores.append(numSeasons).append(" seasons");
     if (groupScores.length() > 0) {
