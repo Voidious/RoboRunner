@@ -34,6 +34,12 @@ import com.google.common.io.Files;
 public class RoboRunner {
   private static final String PROPERTIES_FILENAME = "roborunner.properties";
   private static final String DATA_DIR = "data";
+  private static final String ROBOCODE_PATHS_PROPERTY = "robocodePaths";
+  private static final String JVM_ARGS_PROPERTY = "jvmArgs";
+  private static final String BOTS_DIRS_PROPERTY = "botsDirs";
+  private static final String DEFAULT_JVM_ARGS = "-Xmx512M";
+  private static final String DEFAULT_BOTS_DIRS = "./bots";
+
   private static final String SLASH = System.getProperty("file.separator");
   private static final String BOT_DELIMITER = ":::";
   private static final String SCORE_DELIMITER = "::";
@@ -169,7 +175,7 @@ public class RoboRunner {
       boolean forceWikiOutput) {
     Properties runnerProperties = loadRoboRunnerProperties();
     Iterable<String> pathsIterator = Iterables.transform(
-        Lists.newArrayList(runnerProperties.getProperty("robocodePaths")
+        Lists.newArrayList(runnerProperties.getProperty(ROBOCODE_PATHS_PROPERTY)
             .replaceAll(SLASH + "+", SLASH).split(" *, *")),
         new Function<String, String>() {
           @Override
@@ -187,9 +193,9 @@ public class RoboRunner {
       }
     }
 
-    String jvmArgs = runnerProperties.getProperty("jvmArgs");
+    String jvmArgs = runnerProperties.getProperty(JVM_ARGS_PROPERTY);
     List<String> botsDirs = Lists.newArrayList(
-        runnerProperties.getProperty("botsDirs").trim().split(" *, *"));
+        runnerProperties.getProperty(BOTS_DIRS_PROPERTY).trim().split(" *, *"));
     ChallengeConfig challenge = ChallengeConfig.load(challengeFilePath);
     return new RunnerConfig(robocodePaths, jvmArgs, botsDirs, challenge,
         challengerBot, seasons, forceWikiOutput);
@@ -207,17 +213,33 @@ public class RoboRunner {
     } catch (IOException e) {
       e.printStackTrace();
     }
+    if (!runnerProperties.containsKey(JVM_ARGS_PROPERTY)) {
+      System.out.println("WARNING: Couldn't find property " + JVM_ARGS_PROPERTY
+          + ", setting to default: " + DEFAULT_JVM_ARGS);
+      runnerProperties.setProperty(JVM_ARGS_PROPERTY, DEFAULT_JVM_ARGS);
+      saveRunnerProperties(runnerProperties);
+    }
+    if (!runnerProperties.containsKey(BOTS_DIRS_PROPERTY)) {
+      System.out.println("WARNING: Couldn't find property " + BOTS_DIRS_PROPERTY
+          + ", setting to default: " + DEFAULT_BOTS_DIRS);
+      runnerProperties.setProperty(BOTS_DIRS_PROPERTY, DEFAULT_BOTS_DIRS);
+      saveRunnerProperties(runnerProperties);
+    }
     return runnerProperties;
   }
 
   private void writeDefaultProperties() {
     Properties defaultProperties = new Properties();
-    defaultProperties.setProperty("robocodePaths",
+    defaultProperties.setProperty(ROBOCODE_PATHS_PROPERTY,
         "/home/pez/robocode_1740_1, /home/pez/robocode_1740_2");
-    defaultProperties.setProperty("jvmArgs", "-Xmx512M");
-    defaultProperties.setProperty("botsDirs", "./bots");
+    defaultProperties.setProperty(JVM_ARGS_PROPERTY, DEFAULT_JVM_ARGS);
+    defaultProperties.setProperty(BOTS_DIRS_PROPERTY, DEFAULT_BOTS_DIRS);
+    saveRunnerProperties(defaultProperties);
+  }
+
+  private void saveRunnerProperties(Properties runnerProperties) {
     try {
-      defaultProperties.store(new FileOutputStream(PROPERTIES_FILENAME), null);
+      runnerProperties.store(new FileOutputStream(PROPERTIES_FILENAME), null);
     } catch (FileNotFoundException e) {
       e.printStackTrace();
     } catch (IOException e) {
