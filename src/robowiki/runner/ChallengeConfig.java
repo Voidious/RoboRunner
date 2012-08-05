@@ -8,6 +8,8 @@ import java.util.List;
 import robowiki.runner.BattleRunner.BotList;
 import robowiki.runner.RobotScore.ScoringStyle;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 
@@ -80,6 +82,18 @@ public class ChallengeConfig {
             groupBots = Lists.newArrayList();
           } else {
             List<String> botList = Lists.newArrayList(line.split(" *, *"));
+            Iterables.removeIf(botList, new Predicate<String>() {
+              @Override
+              public boolean apply(String botName) {
+                if (botName.contains(".") && botName.contains(" ")) {
+                  return false;
+                } else {
+                  System.out.println("WARNING: " + botName + " doesn't look "
+                      + "like a bot name, ignoring.");
+                  return true;
+                }
+              }
+            });
             maxBots = Math.max(maxBots, 1 + botList.size());
             groupBots.add(new BotList(botList));
           }
