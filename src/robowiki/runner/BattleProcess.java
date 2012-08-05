@@ -1,7 +1,7 @@
 package robowiki.runner;
 
 import static robowiki.runner.RunnerUtil.getCombinedArgs;
-import static robowiki.runner.RunnerUtil.parseArgument;
+import static robowiki.runner.RunnerUtil.parseStringArgument;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -36,13 +36,13 @@ public class BattleProcess {
 
   public static void main(String[] args) {
     args = getCombinedArgs(args);
-    String robocodePath = parseArgument("path", args,
+    String robocodePath = parseStringArgument("path", args,
         "Pass a path to Robocode with -path");
-    int numRounds = Integer.parseInt(parseArgument("rounds", args,
+    int numRounds = Integer.parseInt(parseStringArgument("rounds", args,
         "Pass number of rounds width with -rounds"));
-    int width = Integer.parseInt(parseArgument("width", args,
+    int width = Integer.parseInt(parseStringArgument("width", args,
         "Pass battlefield width with -width"));
-    int height = Integer.parseInt(parseArgument("height", args,
+    int height = Integer.parseInt(parseStringArgument("height", args,
         "Pass battlefield height with -height"));
 
     BattleProcess process =

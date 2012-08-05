@@ -25,11 +25,11 @@ public class RunnerUtil {
     return argsList.toArray(new String[0]);
   }
 
-  public static String parseArgument(String flagName, String[] args) {
-    return parseArgument(flagName, args, null);
+  public static String parseStringArgument(String flagName, String[] args) {
+    return parseStringArgument(flagName, args, null);
   }
 
-  public static String parseArgument(
+  public static String parseStringArgument(
       String flagName, String[] args, String missingError) {
     for (int x = 0; x < args.length - 1; x++) {
       if (args[x].equals("-" + flagName)) {
@@ -40,6 +40,15 @@ public class RunnerUtil {
       System.out.println(missingError);
     }
     return null;
+  }
+
+  public static boolean parseBooleanArgument(String flagName, String[] args) {
+    for (int x = 0; x < args.length; x++) {
+      if (args[x].equals("-" + flagName)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public static double round(double d, int i) {
