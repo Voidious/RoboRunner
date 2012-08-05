@@ -30,8 +30,8 @@ public class BattleRunner {
   private int _battleFieldWidth;
   private int _battleFieldHeight;
 
-  public BattleRunner(Set<String> robocodeEnginePaths, int numRounds,
-      int battleFieldWidth, int battleFieldHeight) {
+  public BattleRunner(Set<String> robocodeEnginePaths, String jvmArgs,
+      int numRounds, int battleFieldWidth, int battleFieldHeight) {
     _numRounds = numRounds;
     _battleFieldWidth = battleFieldWidth;
     _battleFieldHeight = battleFieldHeight;
@@ -40,14 +40,14 @@ public class BattleRunner {
     _resultPool = Executors.newFixedThreadPool(1);
     _processQueue = Queues.newConcurrentLinkedQueue();
     for (String enginePath : robocodeEnginePaths) {
-      initEngine(enginePath);
+      initEngine(enginePath, jvmArgs);
     }
   }
 
-  private void initEngine(String enginePath) {
+  private void initEngine(String enginePath, String jvmArgs) {
     try {
       System.out.print("Initializing engine: " + enginePath + "... ");
-      ProcessBuilder builder = new ProcessBuilder("java", "-Xmx512M", "-cp",
+      ProcessBuilder builder = new ProcessBuilder("java", jvmArgs, "-cp",
           System.getProperty("java.class.path"),
           "robowiki.runner.BattleProcess", "-rounds", "" + _numRounds,
           "-width", "" + _battleFieldWidth, "-height", "" + _battleFieldHeight,

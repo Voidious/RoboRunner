@@ -132,6 +132,10 @@ public class RoboRunner {
     out.println("the bots. The challenger's score is the average pair-wise");
     out.println("score between the challenger and each of the bots.");
     out.println();
+    out.println("You can customize the JVM arguments passed to the Robocode");
+    out.println("battle processes by editing the jvmArgs property in");
+    out.println("roborunner.properties.");
+    out.println();
     out.println("Happy Robocoding!");
     out.println();
   }
@@ -146,7 +150,8 @@ public class RoboRunner {
       copyBots();
       if (!isMissingBots()) {
         _battleRunner = new BattleRunner(_config.robocodePaths,
-            _config.challenge.rounds, _config.challenge.battleFieldWidth,
+            _config.jvmArgs, _config.challenge.rounds,
+            _config.challenge.battleFieldWidth,
             _config.challenge.battleFieldHeight);
       }
     }
@@ -174,8 +179,10 @@ public class RoboRunner {
       }
     }
 
+    String jvmArgs = runnerProperties.getProperty("jvmArgs");
     ChallengeConfig challenge = ChallengeConfig.load(challengeFilePath);
-    return new RunnerConfig(robocodePaths, challenge, challengerBot, seasons);
+    return new RunnerConfig(
+        robocodePaths, jvmArgs, challenge, challengerBot, seasons);
   }
 
   private Properties loadRoboRunnerProperties() {
@@ -625,14 +632,16 @@ public class RoboRunner {
 
   private static class RunnerConfig {
     public final Set<String> robocodePaths;
+    public final String jvmArgs;
     public final ChallengeConfig challenge;
     public final String challengerBot;
     public final int seasons;
 
-    public RunnerConfig(Set<String> robocodePaths,
+    public RunnerConfig(Set<String> robocodePaths, String jvmArgs,
         ChallengeConfig challenge, String challengerBot, int seasons) {
       this.robocodePaths = Preconditions.checkNotNull(robocodePaths);
-      this.challenge = challenge;
+      this.jvmArgs = Preconditions.checkNotNull(jvmArgs);
+      this.challenge = Preconditions.checkNotNull(challenge);
       this.challengerBot = Preconditions.checkNotNull(challengerBot);
       this.seasons = seasons;
     }
