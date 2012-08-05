@@ -214,6 +214,8 @@ public class RoboRunner {
     Properties defaultProperties = new Properties();
     defaultProperties.setProperty("robocodePaths",
         "/home/pez/robocode_1740_1, /home/pez/robocode_1740_2");
+    defaultProperties.setProperty("jvmArgs", "-Xmx512M");
+    defaultProperties.setProperty("botsDirs", "./bots");
     try {
       defaultProperties.store(new FileOutputStream(PROPERTIES_FILENAME), null);
     } catch (FileNotFoundException e) {
