@@ -46,12 +46,17 @@ public class BattleRunner {
 
   private void initEngine(String enginePath, String jvmArgs) {
     try {
-      System.out.print("Initializing engine: " + enginePath + "... ");
-      ProcessBuilder builder = new ProcessBuilder("java", jvmArgs, "-cp",
+      List<String> command = Lists.newArrayList();
+      command.add("java");
+      command.addAll(Lists.newArrayList(jvmArgs.trim().split(" +")));
+      command.addAll(Lists.newArrayList("-cp",
           System.getProperty("java.class.path"),
           "robowiki.runner.BattleProcess", "-rounds", "" + _numRounds,
           "-width", "" + _battleFieldWidth, "-height", "" + _battleFieldHeight,
-          "-path", enginePath);
+          "-path", enginePath));
+
+      System.out.print("Initializing engine: " + enginePath + "... ");
+      ProcessBuilder builder = new ProcessBuilder(command);
       builder.redirectErrorStream(true);
       Process battleProcess = builder.start();
       BufferedReader reader = new BufferedReader(

@@ -103,10 +103,6 @@ public class RoboRunner {
         + SLASH + "bots" + SLASH + ", if");
     out.println("present.");
     out.println();
-    out.println("Guava library should be placed in the lib dir, and rr.sh");
-    out.println("must include it in the classpath. Available from:");
-    out.println("  http://code.google.com/p/guava-libraries/");
-    out.println();
     out.println("Format of the .rrc file is:");
     out.println("---");
     out.println("<Challenge name>");
@@ -135,6 +131,10 @@ public class RoboRunner {
     out.println("You can customize the JVM arguments passed to the Robocode");
     out.println("battle processes by editing the jvmArgs property in");
     out.println("roborunner.properties.");
+    out.println();
+    out.println("Guava library should be placed in the lib dir, and rr.sh");
+    out.println("must include it in the classpath. Available from:");
+    out.println("  http://code.google.com/p/guava-libraries/");
     out.println();
     out.println("Happy Robocoding!");
     out.println();
