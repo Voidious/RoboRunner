@@ -2,6 +2,7 @@ package robowiki.runner;
 
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 public class BotList {
@@ -16,6 +17,6 @@ public class BotList {
   }
 
   public List<String> getBotNames() {
-    return _botNames;
+    return ImmutableList.copyOf(_botNames);
   }
 }

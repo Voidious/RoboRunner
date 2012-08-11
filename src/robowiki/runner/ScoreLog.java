@@ -24,6 +24,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 /**
  * Score history for a challenger bot. Saves to and loads from XML files.
@@ -39,46 +40,103 @@ public class ScoreLog {
   private static final String ROBOT_SCORE = "robot_score";
   private static final String NAME = "name";
   private static final String SCORE = "score";
-  private static final String ROUNDS = "rounds";
-  private static final String SURVIVAL = "survival";
+  private static final String SURVIVAL_ROUNDS = "rounds";
+  private static final String SURVIVAL_SCORE = "survival";
   private static final String DAMAGE = "damage";
-  private static final String ENERGY = "energy";
+  private static final String NUM_ROUNDS = "num_rounds";
   private static final String TIME = "time";
   private static final Joiner COMMA_JOINER = Joiner.on(",");
+  private static final Function<RobotScore, String> ROBOT_SCORE_NAME_TRANSFORMER
+      = new Function<RobotScore, String>() {
+        @Override
+        public String apply(RobotScore robotScore) {
+          return robotScore.botName;
+        }
+      };
 
   private static XMLEventFactory XML_EVENT_FACTORY =
       XMLEventFactory.newInstance();
   private static XMLEvent XML_TAB = XML_EVENT_FACTORY.createDTD("\t");
   private static XMLEvent XML_NL = XML_EVENT_FACTORY.createDTD("\n");
 
-  public final String botName;
+  public final String challenger;
   private Map<String, List<BattleScore>> _scores;
+  private List<String> _botLists;
 
-  public ScoreLog(String botName) {
-    this.botName = botName;
+  public ScoreLog(String challenger) {
+    this.challenger = challenger;
     _scores = Maps.newHashMap();
+    _botLists = Lists.newArrayList();
   }
 
-  public void addBattle(List<RobotScore> robotScores, long nanoTime) {
-    String botListString = getSortedBotList(robotScores, botName);
+  public void addBattle(
+      List<RobotScore> robotScores, int numRounds, long nanoTime) {
+    String botListString = getSortedBotListFromScores(robotScores);
     if (!_scores.containsKey(botListString)) {
       _scores.put(botListString, Lists.<BattleScore>newArrayList());
+      _botLists.add(botListString);
     }
-    _scores.get(botListString).add(new BattleScore(robotScores, nanoTime));
+    _scores.get(botListString).add(
+        new BattleScore(robotScores, numRounds, nanoTime));
   }
 
-  private String getSortedBotList(
-      List<RobotScore> robotScores, String challengerBot) {
-    List<String> botList = Lists.newArrayList(Lists.transform(robotScores,
-        new Function<RobotScore, String>() {
-          @Override
-          public String apply(RobotScore robotScore) {
-            return robotScore.botName;
-          }
-        }));
-    botList.remove(challengerBot);
-    Collections.sort(botList);
-    return COMMA_JOINER.join(botList);
+  public String getSortedBotListFromScores(List<RobotScore> robotScores) {
+    List<String> botList = Lists.newArrayList(Lists.transform(
+        robotScores, ROBOT_SCORE_NAME_TRANSFORMER));
+    botList.remove(challenger);
+    return getSortedBotList(botList);
+  }
+
+  public String getSortedBotList(List<String> botList) {
+    List<String> sortedBotList = Lists.newArrayList(botList);
+    Collections.sort(sortedBotList);
+    return COMMA_JOINER.join(sortedBotList);
+  }
+
+  public List<String> getBotLists() {
+    return ImmutableList.copyOf(_botLists);
+  }
+
+  public boolean hasBotList(String botListString) {
+    return _scores.containsKey(botListString);
+  }
+
+  public List<BattleScore> getBattleScores(String botList) {
+    return ImmutableList.copyOf(_scores.get(botList));
+  }
+
+  public BattleScore getLastBattleScore(String botList) {
+    if (!_scores.containsKey(botList)) {
+      return null;
+    }
+    List<BattleScore> battleScores = _scores.get(botList);
+    return battleScores.get(battleScores.size() - 1);
+  }
+
+  public BattleScore getAverageBattleScore(String botList) {
+    if (!_scores.containsKey(botList)) {
+      return null;
+    }
+
+    List<BattleScore> battleScores = _scores.get(botList);
+    Map<String, RobotScore> totalScores = Maps.newHashMap();
+    int totalRounds = 0;
+    long totalTime = 0;
+    for (BattleScore battleScore : battleScores) {
+      for (RobotScore robotScore : battleScore.getRobotScores()) {
+        String scoreBotName = robotScore.botName;
+        if (!totalScores.containsKey(scoreBotName)) {
+          totalScores.put(scoreBotName, robotScore);
+        } else {
+          totalScores.put(scoreBotName,
+              RobotScore.addScores(totalScores.get(scoreBotName), robotScore));
+        }
+      }
+      totalRounds += battleScore.getNumRounds();
+      totalTime += battleScore.getElapsedTime();
+    }
+    return new BattleScore(totalScores.values(),
+        totalRounds / totalScores.size(), totalTime / totalScores.size());
   }
 
   /**
@@ -87,44 +145,44 @@ public class ScoreLog {
    *
    * @param inputFilePath path of the XML data file
    * @return a new {@code ScoreLog} with the scores from the input file
+   * @throws XMLStreamException if the XML file is not in the expected format
+   * @throws FileNotFoundException if the file doesn't exist
    */
-  public static ScoreLog loadScoreLog(String inputFilePath) {
-    try {
-      ScoreLog scoreLog = null;
-      List<RobotScore> robotScores = null;
-      long time = 0;
+  public static ScoreLog loadScoreLog(String inputFilePath)
+      throws FileNotFoundException, XMLStreamException {
+    ScoreLog scoreLog = null;
+    List<RobotScore> robotScores = null;
+    int numRounds = 0;
+    long time = 0;
 
-      XMLEventReader eventReader =
-          XMLInputFactory.newInstance().createXMLEventReader(
-              new FileInputStream(inputFilePath));
-      while (eventReader.hasNext()) {
-        XMLEvent event = eventReader.nextEvent();
-        if (event.isStartElement()) {
-          String localPart = event.asStartElement().getName().getLocalPart();
-          if (localPart.equals(SCORES)) {
-            scoreLog = new ScoreLog(getAttribute(event, CHALLENGER));
-          } else if (localPart.equals(BATTLE)) {
-            robotScores = Lists.newArrayList();
-          } else if (localPart.equals(ROBOT_SCORE)) {
-            robotScores.add(readRobotScore(eventReader));
-          } else if (localPart.equals(TIME)) {
-            event = eventReader.nextEvent();
-            time = Long.parseLong(event.asCharacters().getData());
-          }
-        } else if (event.isEndElement()) {
-          String localPart = event.asEndElement().getName().getLocalPart();
-          if (localPart.equals(BATTLE)) {
-            scoreLog.addBattle(robotScores, time);
-          }
+    XMLEventReader eventReader =
+        XMLInputFactory.newInstance().createXMLEventReader(
+            new FileInputStream(inputFilePath));
+    while (eventReader.hasNext()) {
+      XMLEvent event = eventReader.nextEvent();
+      if (event.isStartElement()) {
+        String localPart = event.asStartElement().getName().getLocalPart();
+        if (localPart.equals(SCORES)) {
+          scoreLog = new ScoreLog(getAttribute(event, CHALLENGER));
+        } else if (localPart.equals(BATTLE)) {
+          robotScores = Lists.newArrayList();
+        } else if (localPart.equals(ROBOT_SCORE)) {
+          robotScores.add(readRobotScore(eventReader));
+        } else if (localPart.equals(NUM_ROUNDS)) {
+          event = eventReader.nextEvent();
+          numRounds = Integer.parseInt(event.asCharacters().getData());
+        } else if (localPart.equals(TIME)) {
+          event = eventReader.nextEvent();
+          time = Long.parseLong(event.asCharacters().getData());
+        }
+      } else if (event.isEndElement()) {
+        String localPart = event.asEndElement().getName().getLocalPart();
+        if (localPart.equals(BATTLE)) {
+          scoreLog.addBattle(robotScores, numRounds, time);
         }
       }
-      return scoreLog;
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-    } catch (XMLStreamException e) {
-      e.printStackTrace();
     }
-    return null;
+    return scoreLog;
   }
 
   @SuppressWarnings("unchecked")
@@ -146,13 +204,12 @@ public class ScoreLog {
     double rounds = 0;
     double survival = 0;
     double damage = 0;
-    double energy = 0;
     while (true) {
       XMLEvent event = eventReader.nextEvent();
       if (event.isEndElement()
           && event.asEndElement().getName().getLocalPart().equals(
               ROBOT_SCORE)) {
-        return new RobotScore(name, score, rounds, survival, damage, energy);
+        return new RobotScore(name, score, rounds, survival, damage);
       } else {
         if (event.isStartElement()) {
           String localPart = event.asStartElement().getName().getLocalPart();
@@ -161,14 +218,12 @@ public class ScoreLog {
             name = event.asCharacters().getData();
           } else if (localPart.equals(SCORE)) {
             score = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(ROUNDS)) {
+          } else if (localPart.equals(SURVIVAL_ROUNDS)) {
             rounds = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(SURVIVAL)) {
+          } else if (localPart.equals(SURVIVAL_SCORE)) {
             survival = Double.parseDouble(event.asCharacters().getData());
           } else if (localPart.equals(DAMAGE)) {
             damage = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(ENERGY)) {
-            energy = Double.parseDouble(event.asCharacters().getData());
           }
         }
       }
@@ -188,7 +243,7 @@ public class ScoreLog {
       eventWriter.add(XML_EVENT_FACTORY.createStartDocument());
       eventWriter.add(XML_NL);
       writeStartElement(
-          eventWriter, SCORES, createAttributes(CHALLENGER, botName), 0);
+          eventWriter, SCORES, createAttributes(CHALLENGER, challenger), 0);
 
       List<String> botListStrings = Lists.newArrayList(_scores.keySet());
       Collections.sort(botListStrings);
@@ -201,15 +256,19 @@ public class ScoreLog {
           for (RobotScore robotScore : battleScore.getRobotScores()) {
             writeStartElement(eventWriter, ROBOT_SCORE, 3);
             writeValue(eventWriter, NAME, robotScore.botName, 4);
-            writeValue(eventWriter, SCORE, robotScore.score, 4);
-            writeValue(eventWriter, ROUNDS, robotScore.survivalRounds, 4);
-            writeValue(eventWriter, SURVIVAL, robotScore.survivalScore, 4);
-            writeValue(eventWriter, DAMAGE, robotScore.bulletDamage, 4);
-            writeValue(eventWriter, ENERGY, robotScore.energyConserved, 4);
+            writeValue(eventWriter, SCORE, Math.round(robotScore.score), 4);
+            writeValue(eventWriter, SURVIVAL_ROUNDS,
+                Math.round(robotScore.survivalRounds), 4);
+            writeValue(eventWriter, SURVIVAL_SCORE,
+                Math.round(robotScore.survivalScore), 4);
+            writeValue(eventWriter, DAMAGE,
+                Math.round(robotScore.bulletDamage), 4);
             writeEndElement(eventWriter, ROBOT_SCORE, 3);
           }
+          writeValue(eventWriter, NUM_ROUNDS,
+              Integer.toString(battleScore.getNumRounds()), 3);
           writeValue(eventWriter, TIME,
-              Long.toString(battleScore.getNanoTime()), 3);
+              Long.toString(battleScore.getElapsedTime()), 3);
           writeEndElement(eventWriter, BATTLE, 2);
         }
         writeEndElement(eventWriter, botList, 1);
@@ -260,9 +319,9 @@ public class ScoreLog {
     eventWriter.add(XML_NL);
   }
 
-  private void writeValue(XMLEventWriter eventWriter, String name, double value,
+  private void writeValue(XMLEventWriter eventWriter, String name, long value,
       int numTabs) throws XMLStreamException {
-    writeValue(eventWriter, name, Double.toString(value), numTabs);
+    writeValue(eventWriter, name, Long.toString(value), numTabs);
   }
 
   private void writeValue(XMLEventWriter eventWriter, String name, String value,
@@ -283,19 +342,83 @@ public class ScoreLog {
    */
   public static class BattleScore {
     private final List<RobotScore> _robotScores;
+    private final int _numRounds;
     private final long _elapsedTime;
+    private List<String> _botNames;
 
-    public BattleScore(Collection<RobotScore> scores, long nanoTime) {
+    public BattleScore(
+        Collection<RobotScore> scores, int numRounds, long nanoTime) {
       _robotScores = ImmutableList.copyOf(scores);
+      _numRounds = numRounds;
       _elapsedTime = nanoTime;
+      _botNames = Lists.transform(_robotScores, ROBOT_SCORE_NAME_TRANSFORMER);
     }
 
     public List<RobotScore> getRobotScores() {
       return _robotScores;
     }
 
-    public long getNanoTime() {
+    public int getNumRounds() {
+      return _numRounds;
+    }
+
+    public long getElapsedTime() {
       return _elapsedTime;
+    }
+
+    public RobotScore getRelativeTotalScore(String challenger) {
+      return getRobotScore(challenger, _botNames);
+    }
+
+    public RobotScore getRelativeScore(String challenger, String enemy) {
+      return getRobotScore(challenger, Sets.newHashSet(enemy));
+    }
+
+    private RobotScore getRobotScore(
+        String challenger, Collection<String> enemies) {
+      RobotScore challengerScore = null;
+      for (RobotScore robotScore : _robotScores) {
+        if (robotScore.botName.equals(challenger)) {
+          challengerScore = robotScore;
+        }
+      }
+
+      return new RobotScore(challenger,
+          getAverageScore(challengerScore, RobotScore.NORMAL_SCORER, enemies),
+          getAverageScore(
+              challengerScore, RobotScore.SURVIVAL_FIRSTS_SCORER, enemies),
+          getAverageScore(challengerScore, RobotScore.SURVIVAL_SCORER, enemies),
+          challengerScore.bulletDamage / _numRounds,
+          getAverageEnergyConserved(challengerScore),
+          _robotScores.get(0).numBattles);
+    }
+
+    private double getAverageEnergyConserved(RobotScore challengerScore) {
+      if (_robotScores.size() == 2) {
+        return 100 - (challengerScore.bulletDamage / _numRounds);
+      }
+      return 0;
+    }
+
+    private double getAverageScore(RobotScore challengerRobotScore,
+        Function<RobotScore, Double> scorer, Collection<String> enemies) {
+      double totalScore = 0;
+      double challengerScore = scorer.apply(challengerRobotScore);
+      int numScores = 0;
+      for (RobotScore robotScore : _robotScores) {
+        if (!challengerRobotScore.botName.equals(robotScore.botName)
+            && enemies.contains(robotScore.botName)) {
+          totalScore += 100 * (challengerScore
+              / (challengerScore + scorer.apply(robotScore)));
+          numScores++;
+        }
+      }
+      return totalScore / numScores;
+    }
+
+    public List<String> getBots() {
+      return ImmutableList.copyOf(
+          Lists.transform(_robotScores, ROBOT_SCORE_NAME_TRANSFORMER));
     }
   }
 }

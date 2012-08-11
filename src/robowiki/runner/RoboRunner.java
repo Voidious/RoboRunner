@@ -11,18 +11,19 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import javax.xml.stream.XMLStreamException;
+
 import robowiki.runner.BattleRunner.BattleResultHandler;
 import robowiki.runner.ChallengeConfig.BotListGroup;
 import robowiki.runner.RobotScore.ScoringStyle;
+import robowiki.runner.ScoreLog.BattleScore;
 
 import com.google.common.base.Function;
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -38,14 +39,7 @@ public class RoboRunner {
   private static final String BOTS_DIRS_PROPERTY = "botsDirs";
   private static final String DEFAULT_JVM_ARGS = "-Xmx512M";
   private static final String DEFAULT_BOTS_DIRS = "./bots";
-
   private static final String SLASH = System.getProperty("file.separator");
-  private static final String BOT_DELIMITER = ":::";
-  private static final String SCORE_DELIMITER = "::";
-  private static final Joiner COMMA_JOINER = Joiner.on(",");
-  private static final Joiner BOT_JOINER = Joiner.on(BOT_DELIMITER);
-  private static final Joiner SCORE_JOINER = Joiner.on(SCORE_DELIMITER);
-  private static final String TOTAL = "Total";
 
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
@@ -216,13 +210,13 @@ public class RoboRunner {
       System.out.println("WARNING: Couldn't find property " + JVM_ARGS_PROPERTY
           + ", setting to default: " + DEFAULT_JVM_ARGS);
       runnerProperties.setProperty(JVM_ARGS_PROPERTY, DEFAULT_JVM_ARGS);
-      saveRunnerProperties(runnerProperties);
+      saveRoboRunnerProperties(runnerProperties);
     }
     if (!runnerProperties.containsKey(BOTS_DIRS_PROPERTY)) {
       System.out.println("WARNING: Couldn't find property " + BOTS_DIRS_PROPERTY
           + ", setting to default: " + DEFAULT_BOTS_DIRS);
       runnerProperties.setProperty(BOTS_DIRS_PROPERTY, DEFAULT_BOTS_DIRS);
-      saveRunnerProperties(runnerProperties);
+      saveRoboRunnerProperties(runnerProperties);
     }
     return runnerProperties;
   }
@@ -233,10 +227,10 @@ public class RoboRunner {
         "/home/pez/robocode_1740_1, /home/pez/robocode_1740_2");
     defaultProperties.setProperty(JVM_ARGS_PROPERTY, DEFAULT_JVM_ARGS);
     defaultProperties.setProperty(BOTS_DIRS_PROPERTY, DEFAULT_BOTS_DIRS);
-    saveRunnerProperties(defaultProperties);
+    saveRoboRunnerProperties(defaultProperties);
   }
 
-  private void saveRunnerProperties(Properties runnerProperties) {
+  private void saveRoboRunnerProperties(Properties runnerProperties) {
     try {
       runnerProperties.store(new FileOutputStream(PROPERTIES_FILENAME), null);
     } catch (FileNotFoundException e) {
@@ -312,14 +306,14 @@ public class RoboRunner {
     System.out.println();
     long startTime = System.nanoTime();
 
-    final Properties battleData = loadBattleData(challenger);
-    Map<String, Integer> skipMap = getSkipMap(battleData);
+    final ScoreLog scoreLog = loadScoreLog(challenger);
+    Map<String, Integer> skipMap = getSkipMap(scoreLog);
     List<BotList> battleSet = Lists.newArrayList();
     for (int x = 0; x < _config.seasons; x++) {
       for (BotList botList : challenge.allReferenceBots) {
         List<String> battleBots = Lists.newArrayList(challenger);
-        List<String> botNames = Lists.newArrayList(botList.getBotNames());
-        if (!skip(skipMap, botNames)) {
+        List<String> botNames = botList.getBotNames();
+        if (!skip(skipMap, scoreLog.getSortedBotList(botNames))) {
           battleBots.addAll(botNames);
           battleSet.add(new BotList(battleBots));
         }
@@ -327,30 +321,34 @@ public class RoboRunner {
     }
 
     final ScoringStyle scoringStyle = challenge.scoringStyle;
-    final boolean printWikiFormat = scoringStyle.isChallenge() || _config.forceWikiOutput;
+    final boolean printWikiFormat =
+        scoringStyle.isChallenge() || _config.forceWikiOutput;
+    final String xmlFilePath = DATA_DIR + SLASH + challenger + ".xml";
     if (_config.seasons > 0) {
       _battleRunner.runBattles(battleSet, new BattleResultHandler() {
         @Override
         public void processResults(
             Map<String, RobotScore> rawScoreMap, long elapsedTime) {
-          String botList = getSortedBotList(rawScoreMap, challenger);
-          Map<String, RobotScore> newScoreMap =
-              processScoreMap(rawScoreMap, challenger);
-          Map<String, RobotScore> currentScoreMap =
-              addBattleScore(battleData, botList, newScoreMap);
-          saveBattleData(battleData, challenger);
-  
+          List<RobotScore> botArrayList =
+              Lists.newArrayList(rawScoreMap.values());
+          scoreLog.addBattle(botArrayList, challenge.rounds, elapsedTime);
+          scoreLog.saveScoreLog(xmlFilePath);
+
+          String botList = scoreLog.getSortedBotListFromScores(botArrayList);
+          BattleScore lastScore = scoreLog.getLastBattleScore(botList);
+          BattleScore avgScore = scoreLog.getAverageBattleScore(botList);
           System.out.println("  " + challenger + " vs " +
               botList.replace(",", ", ") + ": "
-              + round(scoringStyle.getScore(newScoreMap.get(TOTAL)), 2)
+              + round(scoringStyle.getScore(
+                  lastScore.getRelativeTotalScore(challenger)), 2)
               + ", took " + formatBattleTime(elapsedTime) + ", avg: "
-              + round(scoringStyle.getScore(currentScoreMap.get(TOTAL)), 2));
+              + round(scoringStyle.getScore(
+                  avgScore.getRelativeTotalScore(challenger)), 2));
           if (rawScoreMap.size() > 2) {
-            printMeleeScores(
-                newScoreMap, currentScoreMap, challenger, scoringStyle);
+            printMeleeScores(lastScore, avgScore, challenger, scoringStyle);
           }
           printOverallScores(
-              battleData, challenger, challenge, printWikiFormat);
+              scoreLog, challenger, challenge, printWikiFormat);
         }
       });
       System.out.println();
@@ -359,25 +357,22 @@ public class RoboRunner {
       System.out.println();
     }
 
-    printAllScores(battleData, challenge);
+    printAllScores(scoreLog, challenge);
     System.out.println();
-    printOverallScores(battleData, challenger, challenge, printWikiFormat);
+    printOverallScores(scoreLog, challenger, challenge, printWikiFormat);
     System.out.println();
   }
 
-  private Map<String, Integer> getSkipMap(Properties battleData) {
+  private Map<String, Integer> getSkipMap(ScoreLog scoreLog) {
     Map<String, Integer> skipMap = Maps.newHashMap();
-    for (String bot : battleData.stringPropertyNames()) {
-      String propertyString = battleData.getProperty(bot);
-      int numBattles =
-          Integer.parseInt(propertyString.split(SCORE_DELIMITER)[6]);
-      skipMap.put(bot, numBattles);
+    for (String botList : scoreLog.getBotLists()) {
+      int numBattles = scoreLog.getBattleScores(botList).size();
+      skipMap.put(botList, numBattles);
     }
     return skipMap;
   }
 
-  private boolean skip(Map<String, Integer> skipMap, List<String> botNames) {
-    String sortedBotList = getSortedBotList(botNames);
+  private boolean skip(Map<String, Integer> skipMap, String sortedBotList) {
     if (skipMap.containsKey(sortedBotList)) {
       int skipsLeft = skipMap.get(sortedBotList);
       if (skipsLeft > 0) {
@@ -388,115 +383,26 @@ public class RoboRunner {
     return false;
   }
 
-  /**
-   * Converts a score map from raw values from Robocode to scores relative to
-   * the challenger bot.
-   *
-   * @param rawScoreMap a map of scores from Robocode
-   * @param challenger name of the challenger bot
-   * @return a map of scores relative to the challenger bot, as well as an
-   *         entry for total score; there will be no entry with key of
-   *         challenger bot
-   */
-  private Map<String, RobotScore> processScoreMap(
-      Map<String, RobotScore> rawScoreMap, String challenger) {
-    Map<String, RobotScore> scoreMap = Maps.newHashMap();
-    for (Map.Entry<String, RobotScore> scoreEntry : rawScoreMap.entrySet()) {
-      String enemy = scoreEntry.getKey();
-      if (!enemy.equals(challenger)) {
-        scoreMap.put(enemy, getRobotScore(
-            rawScoreMap, challenger, Sets.newHashSet(enemy), enemy));
-      }
-    }
-    scoreMap.put(TOTAL, getRobotScore(
-        rawScoreMap, challenger, rawScoreMap.keySet(), TOTAL));
-    return scoreMap;
-  }
-
-  private Properties loadBattleData(String challengerBot) {
-    Properties properties = new Properties();
-    File dataFile = new File(DATA_DIR + SLASH + challengerBot + ".data");
+  private ScoreLog loadScoreLog(String challengerBot) {
+    String filePath = DATA_DIR + SLASH + challengerBot + ".xml";
+    File dataFile = new File(filePath);
     if (dataFile.exists()) {
       try {
-        properties.load(new FileInputStream(dataFile));
+        return ScoreLog.loadScoreLog(filePath);
       } catch (FileNotFoundException e) {
         e.printStackTrace();
-      } catch (IOException e) {
+      } catch (XMLStreamException e) {
         e.printStackTrace();
       }
     }
-
-    return properties;
+    return new ScoreLog(challengerBot);
   }
 
-  private void saveBattleData(Properties battleData, String challengerBot) {
-    try {
-      battleData.store(new FileOutputStream(
-          DATA_DIR + SLASH + challengerBot + ".data"), null);
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-  }
-
-  private Map<String, RobotScore> addBattleScore(
-      Properties battleData, String botList, Map<String, RobotScore> scoreMap) {
-    Map<String, RobotScore> updatedScoreMap = Maps.newHashMap();
-    if (battleData.containsKey(botList)) {
-      Map<String, RobotScore> oldScoreMap = loadScoreMap(battleData, botList);
-      for (Map.Entry<String, RobotScore> scoreEntry : oldScoreMap.entrySet()) {
-        String name = scoreEntry.getKey();
-        updatedScoreMap.put(name,
-            RobotScore.addScores(scoreEntry.getValue(), scoreMap.get(name)));
-      }
-      battleData.setProperty(botList, encodeScoreMap(updatedScoreMap));
-      return updatedScoreMap;
-    } else {
-      battleData.put(botList, encodeScoreMap(scoreMap));
-      return scoreMap;
-    }
-  }
-
-  private Map<String, RobotScore> loadScoreMap(
-      Properties battleData, String botList) {
-    Map<String, RobotScore> scoreMap = Maps.newHashMap();
-    String[] scoreStrings =
-        battleData.getProperty(botList).split(BOT_DELIMITER);
-    for (String scoreString : scoreStrings) {
-      if (!scoreString.equals(TOTAL)) {
-        String[] scores = scoreString.split(SCORE_DELIMITER);
-        String botName = scores[0];
-        double oldScore = Double.parseDouble(scores[1]);
-        double oldFirsts = Double.parseDouble(scores[2]);
-        double oldSurvival = Double.parseDouble(scores[3]);
-        double oldBulletDamage = Double.parseDouble(scores[4]);
-        double oldEnergy = Double.parseDouble(scores[5]);
-        int numBattles = Integer.parseInt(scores[6]);
-        scoreMap.put(botName, new RobotScore(botName, oldScore, oldFirsts,
-            oldSurvival, oldBulletDamage, oldEnergy, numBattles));
-      }
-    }
-    scoreMap.put(TOTAL, RobotScore.totalScore(scoreMap.values(), TOTAL));
-    return scoreMap;
-  }
-
-  private String encodeScoreMap(Map<String, RobotScore> scoreMap) {
-    List<String> scoreStrings = Lists.newArrayList();
-    for (RobotScore robotScore : scoreMap.values()) {
-      scoreStrings.add(SCORE_JOINER.join(robotScore.botName, robotScore.score,
-          robotScore.survivalRounds, robotScore.survivalScore,
-          robotScore.bulletDamage, robotScore.energyConserved,
-          robotScore.numBattles));
-    }
-    return BOT_JOINER.join(scoreStrings);
-  }
-
-  private void printOverallScores(Properties battleData,
+  private void printOverallScores(ScoreLog scoreLog,
       String challenger, ChallengeConfig challenge, boolean printWikiFormat) {
     ScoringStyle scoringStyle = challenge.scoringStyle;
     ScoreSummary scoreSummary = getScoreSummary(
-        battleData, challenge.allReferenceBots, scoringStyle);
+        scoreLog, challenge.allReferenceBots, scoringStyle);
     int challengeBotLists = challenge.allReferenceBots.size();
     double numSeasons =
         round(((double) scoreSummary.numBattles) / challengeBotLists, 2);
@@ -512,12 +418,12 @@ public class RoboRunner {
       for (BotListGroup group : challenge.referenceBotGroups) {
         if (group.referenceBots.size() > 1) {
           for (BotList botList : group.referenceBots) {
-            double wikiScore = getWikiScore(battleData, botList, scoringStyle);
+            double wikiScore = getWikiScore(scoreLog, botList, scoringStyle);
             wikiScores.append(wikiScore).append(" || ");
           }
         }
         ScoreSummary summary = getScoreSummary(
-            battleData, group.referenceBots, scoringStyle);
+            scoreLog, group.referenceBots, scoringStyle);
         double groupScore = summary.getTotalScore();
         groupScores.append("  ").append(group.name).append(": ")
             .append(groupScore).append("\n");
@@ -533,7 +439,7 @@ public class RoboRunner {
     } else {
       if (printWikiFormat) {
         for (BotList botList : challenge.allReferenceBots) {
-          double wikiScore = getWikiScore(battleData, botList, scoringStyle);
+          double wikiScore = getWikiScore(scoreLog, botList, scoringStyle);
           wikiScores.append(wikiScore).append(" || ");
         }
       }
@@ -560,16 +466,17 @@ public class RoboRunner {
     }
   }
 
-  private ScoreSummary getScoreSummary(Properties battleData,
+  private ScoreSummary getScoreSummary(ScoreLog scoreLog,
       List<BotList> referenceBots, ScoringStyle scoringStyle) {
     double sumScores = 0;
     int numBattles = 0;
     int scoredBotLists = 0;
     for (BotList botList : referenceBots) {
-      String botListString = getSortedBotList(botList.getBotNames());
-      if (battleData.containsKey(botListString)) {
-        Map<String, RobotScore> scoreMap = loadScoreMap(battleData, botListString);
-        RobotScore totalRobotScore = scoreMap.get(TOTAL);
+      String botListString = scoreLog.getSortedBotList(botList.getBotNames());
+      if (scoreLog.hasBotList(botListString)) {
+        RobotScore totalRobotScore = scoreLog
+            .getAverageBattleScore(botListString)
+            .getRelativeTotalScore(scoreLog.challenger);
         sumScores += scoringStyle.getScore(totalRobotScore);
         scoredBotLists++;
         numBattles += totalRobotScore.numBattles;
@@ -579,104 +486,45 @@ public class RoboRunner {
   }
 
   private double getWikiScore(
-      Properties battleData, BotList botList, ScoringStyle scoringStyle) {
-    String botListString = getSortedBotList(botList.getBotNames());
+      ScoreLog scoreLog, BotList botList, ScoringStyle scoringStyle) {
+    String botListString = scoreLog.getSortedBotList(botList.getBotNames());
     double score = -1;
-    if (battleData.containsKey(botListString)) {
-      Map<String, RobotScore> scoreMap =
-          loadScoreMap(battleData, botListString);
-      score = round(scoringStyle.getScore(scoreMap.get(TOTAL)), 2);
+    if (scoreLog.hasBotList(botListString)) {
+      RobotScore totalRobotScore = scoreLog
+          .getAverageBattleScore(botListString)
+          .getRelativeTotalScore(scoreLog.challenger);
+      score = round(scoringStyle.getScore(totalRobotScore), 2);
     }
     return score;
   }
 
-  private void printAllScores(
-      Properties battleData, ChallengeConfig challenge) {
+  private void printAllScores(ScoreLog scoreLog, ChallengeConfig challenge) {
     System.out.println("All scores:");
     for (BotList botList : challenge.allReferenceBots) {
-      String botListString = getSortedBotList(botList.getBotNames());
-      if (battleData.containsKey(botListString)) {
-        Map<String, RobotScore> scoreMap =
-            loadScoreMap(battleData, botListString);
-        RobotScore totalRobotScore = scoreMap.get(TOTAL);
+      String botListString = scoreLog.getSortedBotList(botList.getBotNames());
+      if (scoreLog.hasBotList(botListString)) {
+        RobotScore totalRobotScore = scoreLog
+            .getAverageBattleScore(botListString)
+            .getRelativeTotalScore(scoreLog.challenger);
         System.out.println("  " + botListString + ": "
             + round(challenge.scoringStyle.getScore(totalRobotScore), 2));
       }
     }
   }
 
-  private void printMeleeScores(Map<String, RobotScore> newScoreMap,
-      Map<String, RobotScore> currentScoreMap, String challenger,
-      ScoringStyle scoringStyle) {
-    for (String enemy : newScoreMap.keySet()) {
-      if (!enemy.equals(challenger) && !enemy.equals(TOTAL)) {
+  private void printMeleeScores(BattleScore lastScore, BattleScore avgScore,
+      String challenger, ScoringStyle scoringStyle) {
+    for (String enemy : lastScore.getBots()) {
+      if (!enemy.equals(challenger)) {
         // TODO: show raw score fields too
         System.out.println("    vs " + enemy + ": "
-            + round(scoringStyle.getScore(newScoreMap.get(enemy)), 2)
+            + round(scoringStyle.getScore(
+                lastScore.getRelativeScore(challenger, enemy)), 2)
             + ", avg: "
-            + round(scoringStyle.getScore(currentScoreMap.get(enemy)), 2));
+            + round(scoringStyle.getScore(
+                avgScore.getRelativeScore(challenger, enemy)), 2));
       }
     }
-  }
-
-  private RobotScore getRobotScore(Map<String, RobotScore> scoreMap,
-      String challenger, Set<String> enemies, String entryName) {
-    return new RobotScore(entryName,
-        getAverageScore(
-            scoreMap, challenger, RobotScore.NORMAL_SCORER, enemies),
-        getAverageScore(
-            scoreMap, challenger, RobotScore.SURVIVAL_FIRSTS_SCORER, enemies),
-        getAverageScore(
-            scoreMap, challenger, RobotScore.SURVIVAL_SCORER, enemies),
-        getAverageBulletDamage(scoreMap, challenger),
-        getAverageEnergyConserved(scoreMap, challenger));
-  }
-
-  private double getAverageBulletDamage(Map<String, RobotScore> scoreMap,
-      String challengerBot) {
-    return scoreMap.get(challengerBot).bulletDamage / _config.challenge.rounds;
-  }
-
-  private double getAverageEnergyConserved(
-      Map<String, RobotScore> scoreMap, String challengerBot) {
-    if (scoreMap.size() == 2) {
-      for (String bot : scoreMap.keySet()) {
-        if (!bot.equals(challengerBot)) {
-          return 100 - getAverageBulletDamage(scoreMap, bot);
-        }
-      }
-    }
-    return 0;
-  }
-
-  private double getAverageScore(Map<String, RobotScore> scoreMap,
-      String challengerBot, Function<RobotScore, Double> scorer,
-      Set<String> enemies) {
-    double totalScore = 0;
-    double challengerScore = scorer.apply(scoreMap.get(challengerBot));
-    int numScores = 0;
-    for (Map.Entry<String, RobotScore> scoreEntry : scoreMap.entrySet()) {
-      if (!challengerBot.equals(scoreEntry.getKey())
-          && enemies.contains(scoreEntry.getKey())) {
-        totalScore += 100 * (challengerScore
-            / (challengerScore + scorer.apply(scoreEntry.getValue())));
-        numScores++;
-      }
-    }
-    return totalScore / numScores;
-  }
-
-  private String getSortedBotList(
-      Map<String, RobotScore> scoreMap, String challengerBot) {
-    List<String> botList = Lists.newArrayList(scoreMap.keySet());
-    botList.remove(challengerBot);
-    return getSortedBotList(botList);
-  }
-
-  private String getSortedBotList(List<String> botList) {
-    List<String> sortedBotList = Lists.newArrayList(botList);
-    Collections.sort(sortedBotList);
-    return COMMA_JOINER.join(sortedBotList);
   }
 
   private String formatBattleTime(long nanoTime) {
