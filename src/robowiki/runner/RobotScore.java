@@ -5,6 +5,11 @@ import java.util.Collection;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 
+/**
+ * A robot's score data for a single battle or a set of battles.
+ *
+ * @author Voidious
+ */
 public class RobotScore {
   public static final Function<RobotScore, Double> NORMAL_SCORER =
       new Function<RobotScore, Double>() {
@@ -73,6 +78,13 @@ public class RobotScore {
     this.numBattles = numBattles;
   }
 
+  /**
+   * Calculate the average of two scores, weighted by number of battles.
+   *
+   * @param score1 the first score
+   * @param score2 the second score
+   * @return the combined score
+   */
   public static RobotScore addScores(RobotScore score1, RobotScore score2) {
     Preconditions.checkNotNull(score1);
     Preconditions.checkNotNull(score2);
@@ -98,9 +110,18 @@ public class RobotScore {
         score1.botName, score, rounds, survival, damage, energy, addedBattles);
   }
 
+  /**
+   * Calculate the total score for the given bot from the collection fo scores
+   * for each bot in the battle.
+   *
+   * @param robotScores scores for each bot in the battle
+   * @param name name of the bot to calculate total score for
+   * @return the average score for the given bot vs the other bots in the battle
+   */
   public static RobotScore totalScore(
       Collection<RobotScore> robotScores, String name) {
     Preconditions.checkArgument(robotScores != null && !robotScores.isEmpty());
+    Preconditions.checkArgument(name != null && !name.isEmpty());
 
     double totalScore = 0;
     double totalRounds = 0;

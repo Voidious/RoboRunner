@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.List;
 
-import robowiki.runner.BattleRunner.BotList;
 import robowiki.runner.RobotScore.ScoringStyle;
 
 import com.google.common.base.Predicate;

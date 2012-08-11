@@ -13,7 +13,6 @@ import robocode.control.BattleSpecification;
 import robocode.control.BattlefieldSpecification;
 import robocode.control.RobocodeEngine;
 import robocode.control.RobotResults;
-import robowiki.runner.BattleRunner.BotList;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;

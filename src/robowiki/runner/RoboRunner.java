@@ -18,7 +18,6 @@ import java.util.Properties;
 import java.util.Set;
 
 import robowiki.runner.BattleRunner.BattleResultHandler;
-import robowiki.runner.BattleRunner.BotList;
 import robowiki.runner.ChallengeConfig.BotListGroup;
 import robowiki.runner.RobotScore.ScoringStyle;
 
