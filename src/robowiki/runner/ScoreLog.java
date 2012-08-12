@@ -24,6 +24,7 @@ import javax.xml.stream.events.XMLEvent;
 
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -67,7 +68,7 @@ public class ScoreLog {
   private List<String> _botLists;
 
   public ScoreLog(String challenger) {
-    this.challenger = challenger;
+    this.challenger = Preconditions.checkNotNull(challenger);
     _scores = Maps.newHashMap();
     _botLists = Lists.newArrayList();
   }

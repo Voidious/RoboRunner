@@ -295,7 +295,58 @@ public class RoboRunner {
   public void runBattles() {
     final ChallengeConfig challenge = _config.challenge;
     final String challenger = _config.challengerBot;
+    printRunnerHeaders(challenge, challenger);
+    long startTime = System.nanoTime();
 
+    final ScoreLog scoreLog = loadScoreLog(challenger);
+    List<BotList> battleSet = getBattleSet(scoreLog, challenge, challenger);
+    final ScoringStyle scoringStyle = challenge.scoringStyle;
+    final boolean printWikiFormat =
+        scoringStyle.isChallenge() || _config.forceWikiOutput;
+    final String xmlFilePath = DATA_DIR + SLASH + challenger + ".xml.gz";
+    final Map<String, ScoreError> errorMap =
+        getScoreErrorMap(scoreLog, scoringStyle, challenger);
+
+    if (_config.seasons > 0) {
+      BattleResultHandler resultHandler = new BattleResultHandler() {
+        @Override
+        public void processResults(
+            Map<String, RobotScore> rawScoreMap, long elapsedTime) {
+          List<RobotScore> botArrayList =
+              Lists.newArrayList(rawScoreMap.values());
+          scoreLog.addBattle(botArrayList, challenge.rounds, elapsedTime);
+          scoreLog.saveScoreLog(xmlFilePath);
+
+          String botList = scoreLog.getSortedBotListFromScores(botArrayList);
+          BattleScore lastScore = scoreLog.getLastBattleScore(botList);
+          BattleScore avgScore = scoreLog.getAverageBattleScore(botList);
+          errorMap.put(botList,
+              getScoreError(scoreLog, scoringStyle, challenger, botList));
+
+          printBattleScore(challenger, botList, lastScore, avgScore,
+              scoringStyle, elapsedTime);
+          if (rawScoreMap.size() > 2) {
+            printMeleeScores(lastScore, avgScore, challenger, scoringStyle);
+          }
+          printOverallScores(
+              scoreLog, challenger, challenge, printWikiFormat);
+        }
+      };
+      _battleRunner.runBattles(battleSet, resultHandler);
+      System.out.println();
+      System.out.println("Done! Took "
+          + formatBattleTime(System.nanoTime() - startTime));
+      System.out.println();
+    }
+
+    printAllScores(scoreLog, challenge);
+    System.out.println();
+    printOverallScores(scoreLog, challenger, challenge, printWikiFormat);
+    System.out.println();
+  }
+
+  private void printRunnerHeaders(
+      ChallengeConfig challenge, String challenger) {
     System.out.println();
     System.out.println("Challenger: " + challenger);
     System.out.println("Challenge:  " + challenge.name);
@@ -304,9 +355,10 @@ public class RoboRunner {
     System.out.println("Scoring:    "
         + challenge.scoringStyle.getDescription());
     System.out.println();
-    long startTime = System.nanoTime();
+  }
 
-    final ScoreLog scoreLog = loadScoreLog(challenger);
+  private List<BotList> getBattleSet(
+      ScoreLog scoreLog, ChallengeConfig challenge, String challenger) {
     Map<String, Integer> skipMap = getSkipMap(scoreLog);
     List<BotList> battleSet = Lists.newArrayList();
     for (int x = 0; x < _config.seasons; x++) {
@@ -319,48 +371,7 @@ public class RoboRunner {
         }
       }
     }
-
-    final ScoringStyle scoringStyle = challenge.scoringStyle;
-    final boolean printWikiFormat =
-        scoringStyle.isChallenge() || _config.forceWikiOutput;
-    final String xmlFilePath = DATA_DIR + SLASH + challenger + ".xml.gz";
-    if (_config.seasons > 0) {
-      _battleRunner.runBattles(battleSet, new BattleResultHandler() {
-        @Override
-        public void processResults(
-            Map<String, RobotScore> rawScoreMap, long elapsedTime) {
-          List<RobotScore> botArrayList =
-              Lists.newArrayList(rawScoreMap.values());
-          scoreLog.addBattle(botArrayList, challenge.rounds, elapsedTime);
-          scoreLog.saveScoreLog(xmlFilePath);
-
-          String botList = scoreLog.getSortedBotListFromScores(botArrayList);
-          BattleScore lastScore = scoreLog.getLastBattleScore(botList);
-          BattleScore avgScore = scoreLog.getAverageBattleScore(botList);
-          System.out.println("  " + challenger + " vs " +
-              botList.replace(",", ", ") + ": "
-              + round(scoringStyle.getScore(
-                  lastScore.getRelativeTotalScore(challenger)), 2)
-              + ", took " + formatBattleTime(elapsedTime) + ", avg: "
-              + round(scoringStyle.getScore(
-                  avgScore.getRelativeTotalScore(challenger)), 2));
-          if (rawScoreMap.size() > 2) {
-            printMeleeScores(lastScore, avgScore, challenger, scoringStyle);
-          }
-          printOverallScores(
-              scoreLog, challenger, challenge, printWikiFormat);
-        }
-      });
-      System.out.println();
-      System.out.println("Done! Took "
-          + formatBattleTime(System.nanoTime() - startTime));
-      System.out.println();
-    }
-
-    printAllScores(scoreLog, challenge);
-    System.out.println();
-    printOverallScores(scoreLog, challenger, challenge, printWikiFormat);
-    System.out.println();
+    return battleSet;
   }
 
   private Map<String, Integer> getSkipMap(ScoreLog scoreLog) {
@@ -383,6 +394,49 @@ public class RoboRunner {
     return false;
   }
 
+  private Map<String, ScoreError> getScoreErrorMap(
+      ScoreLog scoreLog, ScoringStyle scoringStyle, String challenger) {
+    Map<String, ScoreError> errorMap = Maps.newHashMap();
+    for (String botList : scoreLog.getBotLists()) {
+      errorMap.put(botList,
+          getScoreError(scoreLog, scoringStyle, challenger, botList));
+    }
+    return errorMap;
+  }
+
+  private ScoreError getScoreError(ScoreLog scoreLog,
+      ScoringStyle scoringStyle, String challenger, String botList) {
+    List<BattleScore> battleScores = scoreLog.getBattleScores(botList);
+    List<Double> scores = Lists.newArrayList();
+    for (BattleScore battleScore : battleScores) {
+      RobotScore totalScore = battleScore.getRelativeTotalScore(challenger);
+      scores.add(scoringStyle.getScore(totalScore));
+    }
+    return new ScoreError(standardDeviation(scores), scores.size(),
+        scoreLog.getAverageBattleScore(botList).getElapsedTime());
+  }
+
+  private double standardDeviation(List<Double> values) {
+    double avg = average(values);
+    double sumSquares = 0;
+    for (double value : values) {
+      sumSquares += square(avg - value);
+    }
+    return Math.sqrt(sumSquares / values.size());
+  }
+
+  private double square(double d) {
+    return d * d;
+  }
+
+  private double average(List<Double> values) {
+    double sum = 0;
+    for (double value : values) {
+      sum += value;
+    }
+    return (sum / values.size());
+  }
+
   private ScoreLog loadScoreLog(String challengerBot) {
     String filePath = DATA_DIR + SLASH + challengerBot + ".xml.gz";
     File dataFile = new File(filePath);
@@ -398,6 +452,18 @@ public class RoboRunner {
       }
     }
     return new ScoreLog(challengerBot);
+  }
+
+  private void printBattleScore(String challenger, String botList,
+      BattleScore lastScore, BattleScore avgScore, ScoringStyle scoringStyle,
+      long elapsedTime) {
+    System.out.println("  " + challenger + " vs " +
+        botList.replace(",", ", ") + ": "
+        + round(scoringStyle.getScore(
+            lastScore.getRelativeTotalScore(challenger)), 2)
+        + ", took " + formatBattleTime(elapsedTime) + ", avg: "
+        + round(scoringStyle.getScore(
+            avgScore.getRelativeTotalScore(challenger)), 2));
   }
 
   private void printOverallScores(ScoreLog scoreLog,
