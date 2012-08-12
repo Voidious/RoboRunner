@@ -3,11 +3,14 @@ package robowiki.runner;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLEventFactory;
@@ -147,9 +150,10 @@ public class ScoreLog {
    * @return a new {@code ScoreLog} with the scores from the input file
    * @throws XMLStreamException if the XML file is not in the expected format
    * @throws FileNotFoundException if the file doesn't exist
+   * @throws IOException
    */
   public static ScoreLog loadScoreLog(String inputFilePath)
-      throws FileNotFoundException, XMLStreamException {
+      throws XMLStreamException, FileNotFoundException, IOException {
     ScoreLog scoreLog = null;
     List<RobotScore> robotScores = null;
     int numRounds = 0;
@@ -157,7 +161,7 @@ public class ScoreLog {
 
     XMLEventReader eventReader =
         XMLInputFactory.newInstance().createXMLEventReader(
-            new FileInputStream(inputFilePath));
+            new GZIPInputStream(new FileInputStream(inputFilePath)));
     while (eventReader.hasNext()) {
       XMLEvent event = eventReader.nextEvent();
       if (event.isStartElement()) {
@@ -237,9 +241,11 @@ public class ScoreLog {
    */
   public void saveScoreLog(String outputFilePath) {
     try {
-      XMLEventWriter eventWriter =
-          XMLOutputFactory.newInstance().createXMLEventWriter(
-              new FileOutputStream(outputFilePath));
+      XMLEventWriter eventWriter;
+      GZIPOutputStream gzipOutputStream =
+          new GZIPOutputStream(new FileOutputStream(outputFilePath));
+      eventWriter =
+          XMLOutputFactory.newInstance().createXMLEventWriter(gzipOutputStream);
       eventWriter.add(XML_EVENT_FACTORY.createStartDocument());
       eventWriter.add(XML_NL);
       writeStartElement(
@@ -277,7 +283,10 @@ public class ScoreLog {
       writeEndElement(eventWriter, SCORES, 0);
       eventWriter.add(XML_EVENT_FACTORY.createEndDocument());
       eventWriter.close();
+      gzipOutputStream.close();
     } catch (FileNotFoundException e) {
+      e.printStackTrace();
+    } catch (IOException e) {
       e.printStackTrace();
     } catch (XMLStreamException e) {
       e.printStackTrace();

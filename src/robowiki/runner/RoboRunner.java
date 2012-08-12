@@ -323,7 +323,7 @@ public class RoboRunner {
     final ScoringStyle scoringStyle = challenge.scoringStyle;
     final boolean printWikiFormat =
         scoringStyle.isChallenge() || _config.forceWikiOutput;
-    final String xmlFilePath = DATA_DIR + SLASH + challenger + ".xml";
+    final String xmlFilePath = DATA_DIR + SLASH + challenger + ".xml.gz";
     if (_config.seasons > 0) {
       _battleRunner.runBattles(battleSet, new BattleResultHandler() {
         @Override
@@ -384,7 +384,7 @@ public class RoboRunner {
   }
 
   private ScoreLog loadScoreLog(String challengerBot) {
-    String filePath = DATA_DIR + SLASH + challengerBot + ".xml";
+    String filePath = DATA_DIR + SLASH + challengerBot + ".xml.gz";
     File dataFile = new File(filePath);
     if (dataFile.exists()) {
       try {
@@ -392,6 +392,8 @@ public class RoboRunner {
       } catch (FileNotFoundException e) {
         e.printStackTrace();
       } catch (XMLStreamException e) {
+        e.printStackTrace();
+      } catch (IOException e) {
         e.printStackTrace();
       }
     }
