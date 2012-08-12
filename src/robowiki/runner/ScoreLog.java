@@ -143,6 +143,14 @@ public class ScoreLog {
         totalRounds / battleScores.size(), totalTime / battleScores.size());
   }
 
+  public int getBattleCount(List<BotList> allReferenceBots) {
+    int battles = 0;
+    for (BotList botList : allReferenceBots) {
+      battles += _scores.get(getSortedBotList(botList.getBotNames())).size();
+    }
+    return battles;
+  }
+
   /**
    * Reads in the scores from an XML data file and creates a new
    * {@code ScoreLog} with the battle data.

@@ -323,7 +323,8 @@ public class RoboRunner {
         BattleSelector battleSelector =
             newBattleSelector(challenge, challenger, errorMap);
         int numBattles =
-            (_config.seasons - 2) * (_config.challenge.allReferenceBots.size());
+            (_config.seasons) * (_config.challenge.allReferenceBots.size())
+                - scoreLog.getBattleCount(_config.challenge.allReferenceBots);
         _battleRunner.runBattles(battleSelector, resultHandler, numBattles);
       } else {
         _battleRunner.runBattles(
@@ -335,7 +336,7 @@ public class RoboRunner {
       System.out.println();
     }
 
-    printAllScores(scoreLog, challenge);
+    printAllScores(scoreLog, challenge, errorMap);
     System.out.println();
     printOverallScores(scoreLog, challenger, challenge, printWikiFormat);
     System.out.println();
@@ -470,8 +471,8 @@ public class RoboRunner {
       System.out.println("    Average: "
           + round(scoringStyle.getScore(
               avgScore.getRelativeTotalScore(challenger)), 2)
-          + " +- " + round(scoreError.getStandardError(), 2)
-          + " (" +  scoreError.numBattles + " battles)");
+          + "  +- " + round(scoreError.getStandardError(), 2)
+          + "  (" +  scoreError.numBattles + " battles)");
     }
   }
 
@@ -575,7 +576,8 @@ public class RoboRunner {
     return score;
   }
 
-  private void printAllScores(ScoreLog scoreLog, ChallengeConfig challenge) {
+  private void printAllScores(ScoreLog scoreLog, ChallengeConfig challenge,
+      Map<String, ScoreError> errorMap) {
     System.out.println("All scores:");
     for (BotList botList : challenge.allReferenceBots) {
       String botListString = scoreLog.getSortedBotList(botList.getBotNames());
@@ -583,8 +585,12 @@ public class RoboRunner {
         RobotScore totalRobotScore = scoreLog
             .getAverageBattleScore(botListString)
             .getRelativeTotalScore(scoreLog.challenger);
+        ScoreError scoreError = errorMap.get(botListString);
         System.out.println("  " + botListString + ": "
-            + round(challenge.scoringStyle.getScore(totalRobotScore), 2));
+            + round(challenge.scoringStyle.getScore(totalRobotScore), 2)
+            + (scoreError.numBattles > 1
+                ? "  +- " + round(scoreError.getStandardError(), 2) : "")
+            + "  (" +  scoreError.numBattles + " battles)");
       }
     }
   }
