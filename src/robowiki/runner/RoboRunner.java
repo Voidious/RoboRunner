@@ -1,8 +1,8 @@
 package robowiki.runner;
 
 import static robowiki.runner.RunnerUtil.getCombinedArgs;
-import static robowiki.runner.RunnerUtil.parseStringArgument;
 import static robowiki.runner.RunnerUtil.parseBooleanArgument;
+import static robowiki.runner.RunnerUtil.parseStringArgument;
 import static robowiki.runner.RunnerUtil.round;
 
 import java.io.File;
@@ -11,6 +11,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -26,6 +27,8 @@ import robowiki.runner.ScoreLog.BattleScore;
 
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -41,6 +44,7 @@ public class RoboRunner {
   private static final String DEFAULT_JVM_ARGS = "-Xmx512M";
   private static final String DEFAULT_BOTS_DIRS = "./bots";
   private static final String SLASH = System.getProperty("file.separator");
+  private static final double SMART_BATTLE_RANDOM_RATE = 0.05;
 
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
@@ -317,18 +321,16 @@ public class RoboRunner {
       BattleResultHandler resultHandler = newBattleResultHandler(scoreLog,
           challenge, challenger, xmlFilePath, errorMap, printWikiFormat);
       if (_config.smartBattles) {
-        // TODO: build first 2 seasons into battle selector instead
-        _battleRunner.runBattles(
-            getBattleSet(scoreLog, challenge, challenger, 2), resultHandler);
-        BattleSelector battleSelector =
-            newBattleSelector(challenge, challenger, errorMap);
+        BattleSelector battleSelector = newBattleSelector(
+            getBattleList(scoreLog, challenge, challenger, 2), challenge,
+            challenger, errorMap);
         int numBattles =
             (_config.seasons) * (_config.challenge.allReferenceBots.size())
                 - scoreLog.getBattleCount(_config.challenge.allReferenceBots);
         _battleRunner.runBattles(battleSelector, resultHandler, numBattles);
       } else {
         _battleRunner.runBattles(
-            getBattleSet(scoreLog, challenge, challenger), resultHandler);
+            getBattleList(scoreLog, challenge, challenger), resultHandler);
       }
       System.out.println();
       System.out.println("Done! Took "
@@ -345,38 +347,37 @@ public class RoboRunner {
   private void printRunnerHeaders(
       ChallengeConfig challenge, String challenger) {
     System.out.println();
-    System.out.println("Challenger: " + challenger);
-    System.out.println("Challenge:  " + challenge.name);
-    System.out.println("Seasons:    " + _config.seasons);
-    System.out.println("Threads:    " + _config.robocodePaths.size());
-    System.out.println("Scoring:    "
+    System.out.println("Challenger:     " + challenger);
+    System.out.println("Challenge:      " + challenge.name);
+    System.out.println("Seasons:        " + _config.seasons);
+    System.out.println("Threads:        " + _config.robocodePaths.size());
+    System.out.println("Scoring:        "
         + challenge.scoringStyle.getDescription());
-    if (_config.smartBattles) {
-      System.out.println("Smart battle selection enabled");
-    }
+    System.out.println("Smart battles:  "
+        + (_config.smartBattles ? "On" : "Off"));
     System.out.println();
   }
 
-  private List<BotList> getBattleSet(
+  private List<BotList> getBattleList(
       ScoreLog scoreLog, ChallengeConfig challenge, String challenger) {
-    return getBattleSet(scoreLog, challenge, challenger, _config.seasons);
+    return getBattleList(scoreLog, challenge, challenger, _config.seasons);
   }
 
-  private List<BotList> getBattleSet(ScoreLog scoreLog,
+  private List<BotList> getBattleList(ScoreLog scoreLog,
       ChallengeConfig challenge, String challenger, int seasons) {
     Map<String, Integer> skipMap = getSkipMap(scoreLog);
-    List<BotList> battleSet = Lists.newArrayList();
+    List<BotList> battleList = Lists.newArrayList();
     for (int x = 0; x < seasons; x++) {
       for (BotList botList : challenge.allReferenceBots) {
         List<String> battleBots = Lists.newArrayList(challenger);
         List<String> botNames = botList.getBotNames();
         if (!skip(skipMap, scoreLog.getSortedBotList(botNames))) {
           battleBots.addAll(botNames);
-          battleSet.add(new BotList(battleBots));
+          battleList.add(new BotList(battleBots));
         }
       }
     }
-    return battleSet;
+    return ImmutableList.copyOf(battleList);
   }
 
   private Map<String, Integer> getSkipMap(ScoreLog scoreLog) {
@@ -385,7 +386,7 @@ public class RoboRunner {
       int numBattles = scoreLog.getBattleScores(botList).size();
       skipMap.put(botList, numBattles);
     }
-    return skipMap;
+    return ImmutableMap.copyOf(skipMap);
   }
 
   private boolean skip(Map<String, Integer> skipMap, String sortedBotList) {
@@ -652,24 +653,46 @@ public class RoboRunner {
     };
   }
 
-  private BattleSelector newBattleSelector(final ChallengeConfig challenge,
-      final String challenger, final Map<String, ScoreError> errorMap) {
+  private BattleSelector newBattleSelector(List<BotList> initialBattles,
+      final ChallengeConfig challenge, final String challenger,
+      final Map<String, ScoreError> errorMap) {
+    final LinkedList<BotList> battleList = Lists.newLinkedList(initialBattles);
     return new BattleSelector() {
       @Override
       public BotList nextBotList() {
-        double bestGain = Double.NEGATIVE_INFINITY;
+        if (!battleList.isEmpty()) {
+          return battleList.remove();
+        };
+
         String nextBotListString = null;
-        for (Map.Entry<String, ScoreError> entry : errorMap.entrySet()) {
-          String botListString = entry.getKey();
-          if (challenge.allReferenceBots.size() <= _config.threads
-              || !_runningBotLists.contains(botListString)) {
-            double accuracyGain = entry.getValue().getAccuracyGainRate();
-            if (accuracyGain > bestGain) {
-              bestGain = accuracyGain;
-              nextBotListString = botListString;
+        if (Math.random() < SMART_BATTLE_RANDOM_RATE) {
+          int minBattles = Integer.MAX_VALUE;
+          for (ScoreError scoreError : errorMap.values()) {
+            minBattles = Math.min(minBattles, scoreError.numBattles);
+          }
+          List<String> minBotLists = Lists.newArrayList();
+          for (Map.Entry<String, ScoreError> entry : errorMap.entrySet()) {
+            if (entry.getValue().numBattles == minBattles) {
+              minBotLists.add(entry.getKey());
+            }
+          }
+          nextBotListString =
+              minBotLists.get((int) Math.random() * minBotLists.size());
+        } else {
+          double bestGain = Double.NEGATIVE_INFINITY;
+          for (Map.Entry<String, ScoreError> entry : errorMap.entrySet()) {
+            String botListString = entry.getKey();
+            if (challenge.allReferenceBots.size() <= _config.threads
+                || !_runningBotLists.contains(botListString)) {
+              double accuracyGain = entry.getValue().getAccuracyGainRate();
+              if (accuracyGain > bestGain) {
+                bestGain = accuracyGain;
+                nextBotListString = botListString;
+              }
             }
           }
         }
+
         if (nextBotListString == null) {
           throw new RuntimeException("Failed to select a battle!");
         }

@@ -146,7 +146,10 @@ public class ScoreLog {
   public int getBattleCount(List<BotList> allReferenceBots) {
     int battles = 0;
     for (BotList botList : allReferenceBots) {
-      battles += _scores.get(getSortedBotList(botList.getBotNames())).size();
+      String botListString = getSortedBotList(botList.getBotNames());
+      if (_scores.containsKey(botListString)) {
+        battles += _scores.get(botListString).size();
+      }
     }
     return battles;
   }
