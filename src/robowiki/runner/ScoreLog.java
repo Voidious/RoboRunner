@@ -140,7 +140,7 @@ public class ScoreLog {
       totalTime += battleScore.getElapsedTime();
     }
     return new BattleScore(totalScores.values(),
-        totalRounds / totalScores.size(), totalTime / totalScores.size());
+        totalRounds / battleScores.size(), totalTime / battleScores.size());
   }
 
   /**
@@ -241,9 +241,10 @@ public class ScoreLog {
    * @param outputFilePath the path of the output file
    */
   public void saveScoreLog(String outputFilePath) {
+    XMLEventWriter eventWriter = null;
+    GZIPOutputStream gzipOutputStream = null;
     try {
-      XMLEventWriter eventWriter;
-      GZIPOutputStream gzipOutputStream =
+      gzipOutputStream =
           new GZIPOutputStream(new FileOutputStream(outputFilePath));
       eventWriter =
           XMLOutputFactory.newInstance().createXMLEventWriter(gzipOutputStream);
@@ -291,6 +292,21 @@ public class ScoreLog {
       e.printStackTrace();
     } catch (XMLStreamException e) {
       e.printStackTrace();
+    } finally {
+      if (eventWriter != null) {
+        try {
+          eventWriter.close();
+        } catch (XMLStreamException e) {
+          e.printStackTrace();
+        }
+      }
+      if (gzipOutputStream != null) {
+        try {
+          gzipOutputStream.close();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
     }
   }
 

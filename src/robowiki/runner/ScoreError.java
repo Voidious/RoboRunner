@@ -20,7 +20,7 @@ public class ScoreError {
     return standardDeviation / Math.sqrt(errorBattles);
   }
 
-  public double getNextBattleErrorChange() {
+  public double getAccuracyGainRate() {
     return (getStandardError(numBattles) - getStandardError(numBattles + 1))
         / avgTime;
   }

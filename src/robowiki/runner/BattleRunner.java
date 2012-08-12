@@ -25,7 +25,7 @@ public class BattleRunner {
 
   private Queue<Process> _processQueue;
   private ExecutorService _threadPool;
-  private ExecutorService _resultPool;
+  private ExecutorService _callbackPool;
   private int _numRounds;
   private int _battleFieldWidth;
   private int _battleFieldHeight;
@@ -37,7 +37,7 @@ public class BattleRunner {
     _battleFieldHeight = battleFieldHeight;
 
     _threadPool = Executors.newFixedThreadPool(robocodeEnginePaths.size());
-    _resultPool = Executors.newFixedThreadPool(1);
+    _callbackPool = Executors.newFixedThreadPool(1);
     _processQueue = Queues.newConcurrentLinkedQueue();
     for (String enginePath : robocodeEnginePaths) {
       initEngine(enginePath, jvmArgs);
@@ -77,7 +77,19 @@ public class BattleRunner {
     for (final BotList botList : botLists) {
       futures.add(_threadPool.submit(newBattleCallable(botList, handler)));
     }
+    getAllFutures(futures);
+  }
 
+  public void runBattles(
+      BattleSelector selector, BattleResultHandler handler, int numBattles) {
+    List<Future<String>> futures = Lists.newArrayList();
+    for (int x = 0; x < numBattles; x++) {
+      futures.add(_threadPool.submit(newBattleCallable(selector, handler)));
+    }
+    getAllFutures(futures);
+  }
+
+  private void getAllFutures(List<Future<String>> futures) {
     for (Future<String> future : futures) {
       try {
         future.get();
@@ -90,8 +102,13 @@ public class BattleRunner {
   }
 
   private Callable<String> newBattleCallable(
-      final BotList botList, final BattleResultHandler handler) {
+      BotList botList, BattleResultHandler handler) {
     return new BattleCallable(botList, handler);
+  }
+
+  private Callable<String> newBattleCallable(
+      BattleSelector selector, BattleResultHandler handler) {
+    return new BattleCallable(selector, handler);
   }
 
   private Map<String, RobotScore> getRobotScoreMap(String battleResults) {
@@ -119,19 +136,30 @@ public class BattleRunner {
 
   public void shutdown() {
     _threadPool.shutdown();
-    _resultPool.shutdown();
+    _callbackPool.shutdown();
   }
 
   public interface BattleResultHandler {
     void processResults(Map<String, RobotScore> robotScoreMap, long nanoTime);
   }
 
+  public interface BattleSelector {
+    BotList nextBotList();
+  }
+
   private class BattleCallable implements Callable<String> {
     private BotList _botList;
+    private BattleSelector _selector;
     private BattleResultHandler _listener;
 
     public BattleCallable(BotList botList, BattleResultHandler listener) {
       _botList = botList;
+      _listener = listener;
+    }
+
+    public BattleCallable(
+        BattleSelector selector, BattleResultHandler listener) {
+      _selector = selector;
       _listener = listener;
     }
 
@@ -143,7 +171,18 @@ public class BattleRunner {
           new OutputStreamWriter(battleProcess.getOutputStream()));
       BufferedReader reader = new BufferedReader(
           new InputStreamReader(battleProcess.getInputStream()));
-      writer.append(COMMA_JOINER.join(_botList.getBotNames()) + "\n");
+      BotList botList;
+      if (_selector == null) {
+        botList = _botList;
+      } else {
+        botList = _callbackPool.submit(new Callable<BotList>() {
+          @Override
+          public BotList call() throws Exception {
+            return _selector.nextBotList();
+          }
+        }).get();
+      }
+      writer.append(COMMA_JOINER.join(botList.getBotNames()) + "\n");
       writer.flush();
       String input;
       do {
@@ -152,7 +191,7 @@ public class BattleRunner {
       } while (!isBattleResult(input));
       final String result = input;
       _processQueue.add(battleProcess);
-      _resultPool.submit(new Runnable() {
+      _callbackPool.submit(new Runnable() {
         @Override
         public void run() {
           _listener.processResults(
