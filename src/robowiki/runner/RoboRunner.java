@@ -424,37 +424,8 @@ public class RoboRunner {
       RobotScore totalScore = battleScore.getRelativeTotalScore(challenger);
       scores.add(scoringStyle.getScore(totalScore));
     }
-    return new ScoreError(standardDeviation(scores), scores.size(),
+    return new ScoreError(scores,
         scoreLog.getAverageBattleScore(botList).getElapsedTime());
-  }
-
-  private double standardDeviation(List<Double> values) {
-    double avg = average(values);
-    double sumSquares = 0;
-    for (double value : values) {
-      sumSquares += square(avg - value);
-    }
-    return Math.sqrt(sumSquares / values.size());
-  }
-
-  private double square(double d) {
-    return d * d;
-  }
-
-  private double average(List<Double> values) {
-    double sum = 0;
-    for (double value : values) {
-      sum += value;
-    }
-    return (sum / values.size());
-  }
-
-  private double power(double d, int exp) {
-    double r = 1;
-    for (int x = 0; x < exp; x++) {
-      r *= d;
-    }
-    return r;
   }
 
   private ScoreLog loadScoreLog(String challengerBot, String filePath) {
@@ -486,7 +457,7 @@ public class RoboRunner {
       System.out.println("    Average: "
           + round(scoringStyle.getScore(
               avgScore.getRelativeTotalScore(challenger)), 2)
-          + "  +- " + round(scoreError.getStandardError(), 2)
+          + "  +- " + round(scoreError.getConfidence(), 2)
           + "  (" +  scoreError.numBattles + " battles)");
     }
   }
@@ -604,7 +575,7 @@ public class RoboRunner {
         System.out.println("  " + botListString + ": "
             + round(challenge.scoringStyle.getScore(totalRobotScore), 2)
             + (scoreError.numBattles > 1
-                ? "  +- " + round(scoreError.getStandardError(), 2) : "")
+                ? "  +- " + round(scoreError.getConfidence(), 2) : "")
             + "  (" +  scoreError.numBattles + " battles)");
       }
     }
@@ -719,6 +690,14 @@ public class RoboRunner {
         return new BotList(nextBotList);
       }
     };
+  }
+
+  private double power(double d, int exp) {
+    double r = 1;
+    for (int x = 0; x < exp; x++) {
+      r *= d;
+    }
+    return r;
   }
 
   private static class RunnerConfig {
