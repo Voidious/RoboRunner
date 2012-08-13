@@ -131,7 +131,7 @@ public class BattleRunner {
   }
 
   private boolean isBattleResult(String line) {
-    return line.startsWith(BattleProcess.RESULT_SIGNAL);
+    return line != null && line.startsWith(BattleProcess.RESULT_SIGNAL);
   }
 
   public void shutdown() {

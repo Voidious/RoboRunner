@@ -28,7 +28,6 @@ import robowiki.runner.ScoreLog.BattleScore;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -44,7 +43,7 @@ public class RoboRunner {
   private static final String DEFAULT_JVM_ARGS = "-Xmx512M";
   private static final String DEFAULT_BOTS_DIRS = "./bots";
   private static final String SLASH = System.getProperty("file.separator");
-  private static final double SMART_BATTLE_RANDOM_RATE = 0.05;
+  private static final double SMART_BATTLE_RANDOM_RATE = 0.02;
 
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
@@ -317,6 +316,13 @@ public class RoboRunner {
     final Map<String, ScoreError> errorMap =
         getScoreErrorMap(scoreLog, scoringStyle, challenger);
 
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+      @Override
+      public void run() {
+        scoreLog.saveScoreLog(xmlFilePath);
+      }
+    });
+
     if (_config.seasons > 0) {
       BattleResultHandler resultHandler = newBattleResultHandler(scoreLog,
           challenge, challenger, xmlFilePath, errorMap, printWikiFormat);
@@ -386,7 +392,7 @@ public class RoboRunner {
       int numBattles = scoreLog.getBattleScores(botList).size();
       skipMap.put(botList, numBattles);
     }
-    return ImmutableMap.copyOf(skipMap);
+    return skipMap;
   }
 
   private boolean skip(Map<String, Integer> skipMap, String sortedBotList) {
@@ -441,6 +447,14 @@ public class RoboRunner {
       sum += value;
     }
     return (sum / values.size());
+  }
+
+  private double power(double d, int exp) {
+    double r = 1;
+    for (int x = 0; x < exp; x++) {
+      r *= d;
+    }
+    return r;
   }
 
   private ScoreLog loadScoreLog(String challengerBot, String filePath) {
@@ -664,12 +678,14 @@ public class RoboRunner {
           return battleList.remove();
         };
 
+        int minBattles = Integer.MAX_VALUE;
+        for (ScoreError scoreError : errorMap.values()) {
+          minBattles = Math.min(minBattles, scoreError.numBattles);
+        }
+        double randomBattleChance =
+            SMART_BATTLE_RANDOM_RATE / power(2, minBattles - 2);
         String nextBotListString = null;
-        if (Math.random() < SMART_BATTLE_RANDOM_RATE) {
-          int minBattles = Integer.MAX_VALUE;
-          for (ScoreError scoreError : errorMap.values()) {
-            minBattles = Math.min(minBattles, scoreError.numBattles);
-          }
+        if (Math.random() < randomBattleChance) {
           List<String> minBotLists = Lists.newArrayList();
           for (Map.Entry<String, ScoreError> entry : errorMap.entrySet()) {
             if (entry.getValue().numBattles == minBattles) {
