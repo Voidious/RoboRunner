@@ -111,7 +111,7 @@ public class RobotScore {
   }
 
   /**
-   * Calculate the total score for the given bot from the collection fo scores
+   * Calculate the total score for the given bot from the collection of scores
    * for each bot in the battle.
    *
    * @param robotScores scores for each bot in the battle
