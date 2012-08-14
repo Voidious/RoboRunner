@@ -15,6 +15,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
 
 import javax.xml.stream.XMLStreamException;
@@ -346,7 +347,8 @@ public class RoboRunner {
 
     printAllScores(scoreLog, challenge, errorMap);
     System.out.println();
-    printOverallScores(scoreLog, challenger, challenge, printWikiFormat);
+    printOverallScores(
+        scoreLog, errorMap, challenger, challenge, printWikiFormat);
     System.out.println();
   }
 
@@ -457,13 +459,14 @@ public class RoboRunner {
       System.out.println("    Average: "
           + round(scoringStyle.getScore(
               avgScore.getRelativeTotalScore(challenger)), 2)
-          + "  +- " + round(scoreError.getConfidence(), 2)
+          + "  +- " + round(1.96 * scoreError.getStandardError(), 2)
           + "  (" +  scoreError.numBattles + " battles)");
     }
   }
 
   private void printOverallScores(ScoreLog scoreLog,
-      String challenger, ChallengeConfig challenge, boolean printWikiFormat) {
+      Map<String, ScoreError> errorMap, String challenger,
+      ChallengeConfig challenge, boolean printWikiFormat) {
     ScoringStyle scoringStyle = challenge.scoringStyle;
     ScoreSummary scoreSummary = getScoreSummary(
         scoreLog, challenge.allReferenceBots, scoringStyle);
@@ -476,6 +479,7 @@ public class RoboRunner {
     wikiScores.append("| [[").append(
             challenger.replaceAll("^[^ ]*\\.", "").replace(" ", "]] "))
         .append(" || [[User:Author|Author]] || Type || ");
+    Double confidence = null;
     if (challenge.hasGroups()) {
       double sumGroups = 0;
       int scoredGroups = 0;
@@ -500,6 +504,7 @@ public class RoboRunner {
       ScoreSummary overallSummary =
           new ScoreSummary(sumGroups, scoredGroups, scoredGroups);
       overallScore = overallSummary.getTotalScore();
+      // TODO: calculate overall confidence based on group scores
     } else {
       if (printWikiFormat) {
         for (BotList botList : challenge.allReferenceBots) {
@@ -508,6 +513,8 @@ public class RoboRunner {
         }
       }
       overallScore = scoreSummary.getTotalScore();
+      confidence = getConfidence(scoreLog, challenge.allReferenceBots, errorMap,
+          scoreSummary.numBattles);
     }
 
     String botsFaced = "";
@@ -518,7 +525,8 @@ public class RoboRunner {
           + "% bots faced)";
     }
     System.out.println("Overall score: " + overallScore
-        + ", " + numSeasons + " seasons" + botsFaced);
+        + (confidence == null ? "" : "  +- " + round(confidence, 2))
+        + "  (" + numSeasons + " seasons" + botsFaced + ")");
     wikiScores.append("'''").append(overallScore).append("''' || ");
     wikiScores.append(numSeasons).append(" seasons");
     if (groupScores.length() > 0) {
@@ -528,6 +536,32 @@ public class RoboRunner {
       System.out.println("Wiki format: " + wikiScores.toString());
       System.out.println();
     }
+  }
+
+  private Double getConfidence(ScoreLog scoreLog, List<BotList> botLists,
+      Map<String, ScoreError> errorMap, int numBattles) {
+    Random random = new Random();
+    List<Double> overallScores = Lists.newArrayList();
+    int iterations = 300000 / numBattles;
+    for (int x = 0; x < iterations; x++) {
+      double overallScoreTotal = 0;
+      int numScores = 0;
+      for (BotList botList : botLists) {
+        String botListString = scoreLog.getSortedBotList(botList.getBotNames());
+        if (errorMap.containsKey(botListString)) {
+          ScoreError botError = errorMap.get(botListString);
+          double botScoreTotal = 0;
+          for (int y = 0; y < botError.numBattles; y++) {
+            botScoreTotal += Math.max(0, Math.min(100, botError.average
+                + (random.nextGaussian() * botError.standardDeviation)));
+          }
+          overallScoreTotal += botScoreTotal / botError.numBattles;
+          numScores++;
+        }
+      }
+      overallScores.add(overallScoreTotal / numScores);
+    }
+    return 1.96 * RunnerUtil.standardDeviation(overallScores);
   }
 
   private ScoreSummary getScoreSummary(ScoreLog scoreLog,
@@ -575,7 +609,7 @@ public class RoboRunner {
         System.out.println("  " + botListString + ": "
             + round(challenge.scoringStyle.getScore(totalRobotScore), 2)
             + (scoreError.numBattles > 1
-                ? "  +- " + round(scoreError.getConfidence(), 2) : "")
+                ? "  +- " + round(1.96 * scoreError.getStandardError(), 2) : "")
             + "  (" +  scoreError.numBattles + " battles)");
       }
     }
@@ -632,7 +666,7 @@ public class RoboRunner {
           printMeleeScores(lastScore, avgScore, challenger, scoringStyle);
         }
         printOverallScores(
-            scoreLog, challenger, challenge, printWikiFormat);
+            scoreLog, errorMap, challenger, challenge, printWikiFormat);
         _runningBotLists.remove(botList);
       }
     };

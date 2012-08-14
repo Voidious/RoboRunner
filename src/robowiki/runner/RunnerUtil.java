@@ -58,4 +58,25 @@ public class RunnerUtil {
     }
     return ((double) Math.round(d * powerTen)) / powerTen;
   }
+
+  public static double standardDeviation(List<Double> values) {
+    double avg = average(values);
+    double sumSquares = 0;
+    for (double value : values) {
+      sumSquares += square(avg - value);
+    }
+    return Math.sqrt(sumSquares / values.size());
+  }
+
+  public static double square(double d) {
+    return d * d;
+  }
+
+  public static double average(List<Double> values) {
+    double sum = 0;
+    for (double value : values) {
+      sum += value;
+    }
+    return (sum / values.size());
+  }
 }
