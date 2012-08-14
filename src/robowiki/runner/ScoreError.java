@@ -1,8 +1,11 @@
 package robowiki.runner;
 
 import java.util.List;
+import java.util.Random;
 
 public class ScoreError {
+  private static final Random RANDOM = new Random();
+
   public final double average;
   public final double standardDeviation;
   public final int numBattles;
@@ -26,5 +29,14 @@ public class ScoreError {
   public double getAccuracyGainRate() {
     return (getStandardError(numBattles) - getStandardError(numBattles + 1))
         / avgTime;
+  }
+
+  public double generateRandomAverageScore() {
+    double scoreTotal = 0;
+    for (int x = 0; x < numBattles; x++) {
+      scoreTotal += Math.max(0, Math.min(100, average
+          + (RANDOM.nextGaussian() * standardDeviation)));
+    }
+    return scoreTotal / numBattles;
   }
 }

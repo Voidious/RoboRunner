@@ -15,7 +15,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Random;
 import java.util.Set;
 
 import javax.xml.stream.XMLStreamException;
@@ -348,7 +347,7 @@ public class RoboRunner {
     printAllScores(scoreLog, challenge, errorMap);
     System.out.println();
     printOverallScores(
-        scoreLog, errorMap, challenger, challenge, printWikiFormat);
+        scoreLog, errorMap, challenger, challenge, printWikiFormat, true);
     System.out.println();
   }
 
@@ -466,7 +465,7 @@ public class RoboRunner {
 
   private void printOverallScores(ScoreLog scoreLog,
       Map<String, ScoreError> errorMap, String challenger,
-      ChallengeConfig challenge, boolean printWikiFormat) {
+      ChallengeConfig challenge, boolean printWikiFormat, boolean finalScore) {
     ScoringStyle scoringStyle = challenge.scoringStyle;
     ScoreSummary scoreSummary = getScoreSummary(
         scoreLog, challenge.allReferenceBots, scoringStyle);
@@ -479,7 +478,12 @@ public class RoboRunner {
     wikiScores.append("| [[").append(
             challenger.replaceAll("^[^ ]*\\.", "").replace(" ", "]] "))
         .append(" || [[User:Author|Author]] || Type || ");
-    Double confidence = null;
+
+    boolean showConfidence = (getMinBattles(errorMap) >= 2);
+    int confidenceIterations =
+        (finalScore ? Math.min(50000, 10000000 / scoreSummary.numBattles)
+                    : Math.min(1000, 100000 / scoreSummary.numBattles));
+    double confidence = 0;
     if (challenge.hasGroups()) {
       double sumGroups = 0;
       int scoredGroups = 0;
@@ -504,7 +508,10 @@ public class RoboRunner {
       ScoreSummary overallSummary =
           new ScoreSummary(sumGroups, scoredGroups, scoredGroups);
       overallScore = overallSummary.getTotalScore();
-      // TODO: calculate overall confidence based on group scores
+      if (showConfidence) {
+        confidence = getGroupsConfidence(scoreLog, challenge.referenceBotGroups,
+            errorMap, confidenceIterations);
+      }
     } else {
       if (printWikiFormat) {
         for (BotList botList : challenge.allReferenceBots) {
@@ -513,8 +520,10 @@ public class RoboRunner {
         }
       }
       overallScore = scoreSummary.getTotalScore();
-      confidence = getConfidence(scoreLog, challenge.allReferenceBots, errorMap,
-          scoreSummary.numBattles);
+      if (showConfidence) {
+        confidence = getOverallConfidence(scoreLog, challenge.allReferenceBots,
+            errorMap, confidenceIterations);
+      }
     }
 
     String botsFaced = "";
@@ -525,8 +534,9 @@ public class RoboRunner {
           + "% bots faced)";
     }
     System.out.println("Overall score: " + overallScore
-        + (confidence == null ? "" : "  +- " + round(confidence, 2))
-        + "  (" + numSeasons + " seasons" + botsFaced + ")");
+        + (showConfidence ? "  +- "
+            + round(confidence, (finalScore ? 3 : 2)) : "")
+        + "  (" + numSeasons + " seasons)" + botsFaced);
     wikiScores.append("'''").append(overallScore).append("''' || ");
     wikiScores.append(numSeasons).append(" seasons");
     if (groupScores.length() > 0) {
@@ -538,30 +548,64 @@ public class RoboRunner {
     }
   }
 
-  private Double getConfidence(ScoreLog scoreLog, List<BotList> botLists,
-      Map<String, ScoreError> errorMap, int numBattles) {
-    Random random = new Random();
+  private double getOverallConfidence(ScoreLog scoreLog, List<BotList> botLists,
+      Map<String, ScoreError> errorMap, int iterations) {
     List<Double> overallScores = Lists.newArrayList();
-    int iterations = 300000 / numBattles;
     for (int x = 0; x < iterations; x++) {
-      double overallScoreTotal = 0;
-      int numScores = 0;
-      for (BotList botList : botLists) {
+      overallScores.add(
+          generateOverallScore(scoreLog, botLists, errorMap));
+    }
+    return 1.96 * RunnerUtil.standardDeviation(overallScores);
+  }
+
+  private double generateOverallScore(ScoreLog scoreLog, List<BotList> botLists,
+      Map<String, ScoreError> errorMap) {
+    double overallTotal = 0;
+    int numScores = 0;
+    for (BotList botList : botLists) {
+      String botListString = scoreLog.getSortedBotList(botList.getBotNames());
+      if (errorMap.containsKey(botListString)) {
+        ScoreError botError = errorMap.get(botListString);
+        overallTotal += botError.generateRandomAverageScore();
+        numScores++;
+      }
+    }
+    return overallTotal / numScores;
+  }
+
+  private double getGroupsConfidence(ScoreLog scoreLog,
+      List<BotListGroup> botListGroups, Map<String, ScoreError> errorMap,
+      int iterations) {
+    List<Double> overallScores = Lists.newArrayList();
+    for (int x = 0; x < iterations; x++) {
+      overallScores.add(
+          generateGroupsScore(scoreLog, botListGroups, errorMap));
+    }
+    return 1.96 * RunnerUtil.standardDeviation(overallScores);
+  }
+
+
+  private double generateGroupsScore(ScoreLog scoreLog,
+      List<BotListGroup> botListGroups, Map<String, ScoreError> errorMap) {
+    double overallTotal = 0;
+    int numGroupScores = 0;
+    for (BotListGroup group : botListGroups) {
+      double groupTotal = 0;
+      int numBotScores = 0;
+      for (BotList botList : group.referenceBots) {
         String botListString = scoreLog.getSortedBotList(botList.getBotNames());
         if (errorMap.containsKey(botListString)) {
           ScoreError botError = errorMap.get(botListString);
-          double botScoreTotal = 0;
-          for (int y = 0; y < botError.numBattles; y++) {
-            botScoreTotal += Math.max(0, Math.min(100, botError.average
-                + (random.nextGaussian() * botError.standardDeviation)));
-          }
-          overallScoreTotal += botScoreTotal / botError.numBattles;
-          numScores++;
+          groupTotal += botError.generateRandomAverageScore();
+          numBotScores++;
         }
       }
-      overallScores.add(overallScoreTotal / numScores);
+      if (numBotScores > 0) {
+        overallTotal += groupTotal / numBotScores;
+        numGroupScores++;
+      }
     }
-    return 1.96 * RunnerUtil.standardDeviation(overallScores);
+    return overallTotal / numGroupScores;
   }
 
   private ScoreSummary getScoreSummary(ScoreLog scoreLog,
@@ -640,6 +684,22 @@ public class RoboRunner {
     }
   }
 
+  private int getMinBattles(Map<String, ScoreError> errorMap) {
+    int minBattles = Integer.MAX_VALUE;
+    for (ScoreError scoreError : errorMap.values()) {
+      minBattles = Math.min(minBattles, scoreError.numBattles);
+    }
+    return minBattles;
+  }
+
+  private double power(double d, int exp) {
+    double r = 1;
+    for (int x = 0; x < exp; x++) {
+      r *= d;
+    }
+    return r;
+  }
+
   private BattleResultHandler newBattleResultHandler(final ScoreLog scoreLog,
       final ChallengeConfig challenge, final String challenger,
       final String xmlFilePath, final Map<String, ScoreError> errorMap,
@@ -666,7 +726,7 @@ public class RoboRunner {
           printMeleeScores(lastScore, avgScore, challenger, scoringStyle);
         }
         printOverallScores(
-            scoreLog, errorMap, challenger, challenge, printWikiFormat);
+            scoreLog, errorMap, challenger, challenge, printWikiFormat, false);
         _runningBotLists.remove(botList);
       }
     };
@@ -683,10 +743,7 @@ public class RoboRunner {
           return battleList.remove();
         };
 
-        int minBattles = Integer.MAX_VALUE;
-        for (ScoreError scoreError : errorMap.values()) {
-          minBattles = Math.min(minBattles, scoreError.numBattles);
-        }
+        int minBattles = getMinBattles(errorMap);
         double randomBattleChance =
             SMART_BATTLE_RANDOM_RATE / power(2, minBattles - 2);
         String nextBotListString = null;
@@ -724,14 +781,6 @@ public class RoboRunner {
         return new BotList(nextBotList);
       }
     };
-  }
-
-  private double power(double d, int exp) {
-    double r = 1;
-    for (int x = 0; x < exp; x++) {
-      r *= d;
-    }
-    return r;
   }
 
   private static class RunnerConfig {
