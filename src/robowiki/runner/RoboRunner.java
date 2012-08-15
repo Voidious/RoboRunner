@@ -481,7 +481,7 @@ public class RoboRunner {
 
     boolean showConfidence = (getMinBattles(errorMap) >= 2);
     int confidenceIterations =
-        (finalScore ? Math.min(50000, 10000000 / scoreSummary.numBattles)
+        (finalScore ? Math.min(20000, 10000000 / scoreSummary.numBattles)
                     : Math.min(1000, 100000 / scoreSummary.numBattles));
     double confidence = 0;
     if (challenge.hasGroups()) {
@@ -534,8 +534,7 @@ public class RoboRunner {
           + "% bots faced)";
     }
     System.out.println("Overall score: " + overallScore
-        + (showConfidence ? "  +- "
-            + round(confidence, (finalScore ? 3 : 2)) : "")
+        + (showConfidence ? "  +- " + round(confidence, 2) : "")
         + "  (" + numSeasons + " seasons)" + botsFaced);
     wikiScores.append("'''").append(overallScore).append("''' || ");
     wikiScores.append(numSeasons).append(" seasons");
