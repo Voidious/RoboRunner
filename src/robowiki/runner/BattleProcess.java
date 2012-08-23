@@ -16,7 +16,7 @@ import robocode.control.RobotResults;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 public class BattleProcess {
@@ -81,15 +81,14 @@ public class BattleProcess {
         _numRounds, _battlefield, 
     _engine.getLocalRepository(COMMA_JOINER.join(botList.getBotNames())));
     _engine.runBattle(battleSpec, true);
-    Map<String, RobotResults> resultsMap =
-        Maps.newHashMap(_listener.getRobotResultsMap());
+    Multimap<String, RobotResults> resultsMap = _listener.getRobotResultsMap();
     _listener.clear();
     return battleResultString(resultsMap);
   }
 
-  private String battleResultString(Map<String, RobotResults> resultsMap) {
+  private String battleResultString(Multimap<String, RobotResults> resultsMap) {
     Set<String> resultStrings = Sets.newHashSet();
-    for (Map.Entry<String, RobotResults> resultsEntry : resultsMap.entrySet()) {
+    for (Map.Entry<String, RobotResults> resultsEntry : resultsMap.entries()) {
       RobotResults results = resultsEntry.getValue();
       resultStrings.add(resultsEntry.getKey() + SCORE_DELIMITER
           + results.getScore() + SCORE_DELIMITER

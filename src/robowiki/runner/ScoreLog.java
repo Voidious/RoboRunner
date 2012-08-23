@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
@@ -26,9 +27,10 @@ import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Multimap;
 
 /**
  * Score history for a challenger bot. Saves to and loads from XML files.
@@ -73,15 +75,22 @@ public class ScoreLog {
     _botLists = Lists.newArrayList();
   }
 
+  /**
+   * Adds the results of a Robocode battle to the data store.
+   *
+   * @param robotScores scores for each robot in the battle
+   * @param numRounds number of rounds in the battle
+   * @param elapsedTime elapsed time of the battle, in nanoseconds
+   */
   public void addBattle(
-      List<RobotScore> robotScores, int numRounds, long nanoTime) {
+      List<RobotScore> robotScores, int numRounds, long elapsedTime) {
     String botListString = getSortedBotListFromScores(robotScores);
     if (!_scores.containsKey(botListString)) {
       _scores.put(botListString, Lists.<BattleScore>newArrayList());
       _botLists.add(botListString);
     }
     _scores.get(botListString).add(
-        new BattleScore(robotScores, numRounds, nanoTime));
+        new BattleScore(robotScores, numRounds, elapsedTime));
   }
 
   public String getSortedBotListFromScores(List<RobotScore> robotScores) {
@@ -123,19 +132,23 @@ public class ScoreLog {
     }
 
     List<BattleScore> battleScores = _scores.get(botList);
-    Map<String, RobotScore> totalScores = Maps.newHashMap();
+    Multimap<String, RobotScore> totalScores = LinkedListMultimap.create();
     int totalRounds = 0;
     long totalTime = 0;
+    boolean initializeTotalScores = true;
     for (BattleScore battleScore : battleScores) {
       for (RobotScore robotScore : battleScore.getRobotScores()) {
-        String scoreBotName = robotScore.botName;
-        if (!totalScores.containsKey(scoreBotName)) {
-          totalScores.put(scoreBotName, robotScore);
+        if (initializeTotalScores) {
+          totalScores.put(robotScore.botName, robotScore);
         } else {
-          totalScores.put(scoreBotName,
-              RobotScore.addScores(totalScores.get(scoreBotName), robotScore));
+          LinkedList<RobotScore> scores =
+              Lists.newLinkedList(totalScores.get(robotScore.botName));
+          RobotScore oldScore = scores.removeFirst();
+          scores.add(RobotScore.addScores(oldScore, robotScore));
+          totalScores.replaceValues(robotScore.botName, scores);
         }
       }
+      initializeTotalScores = false;
       totalRounds += battleScore.getNumRounds();
       totalTime += battleScore.getElapsedTime();
     }
@@ -381,14 +394,12 @@ public class ScoreLog {
     private final List<RobotScore> _robotScores;
     private final int _numRounds;
     private final long _elapsedTime;
-    private List<String> _botNames;
 
     public BattleScore(
         Collection<RobotScore> scores, int numRounds, long nanoTime) {
       _robotScores = ImmutableList.copyOf(scores);
       _numRounds = numRounds;
       _elapsedTime = nanoTime;
-      _botNames = Lists.transform(_robotScores, ROBOT_SCORE_NAME_TRANSFORMER);
     }
 
     public List<RobotScore> getRobotScores() {
@@ -403,59 +414,20 @@ public class ScoreLog {
       return _elapsedTime;
     }
 
-    public RobotScore getRelativeTotalScore(String challenger) {
-      return getRobotScore(challenger, _botNames);
-    }
-
-    public RobotScore getRelativeScore(String challenger, String enemy) {
-      return getRobotScore(challenger, Sets.newHashSet(enemy));
-    }
-
-    private RobotScore getRobotScore(
-        String challenger, Collection<String> enemies) {
-      RobotScore challengerScore = null;
+    public RobotScore getRobotScore(String botName) {
       for (RobotScore robotScore : _robotScores) {
-        if (robotScore.botName.equals(challenger)) {
-          challengerScore = robotScore;
+        if (robotScore.botName.equals(botName)) {
+          return robotScore;
         }
       }
-
-      return new RobotScore(challenger,
-          getAverageScore(challengerScore, RobotScore.NORMAL_SCORER, enemies),
-          getAverageScore(
-              challengerScore, RobotScore.SURVIVAL_FIRSTS_SCORER, enemies),
-          getAverageScore(challengerScore, RobotScore.SURVIVAL_SCORER, enemies),
-          challengerScore.bulletDamage / _numRounds,
-          getAverageEnergyConserved(challengerScore),
-          _robotScores.get(0).numBattles);
+      return null;
     }
 
-    private double getAverageEnergyConserved(RobotScore challengerScore) {
-      if (_robotScores.size() == 2) {
-        return 100 - (challengerScore.bulletDamage / _numRounds);
-      }
-      return 0;
-    }
-
-    private double getAverageScore(RobotScore challengerRobotScore,
-        Function<RobotScore, Double> scorer, Collection<String> enemies) {
-      double totalScore = 0;
-      double challengerScore = scorer.apply(challengerRobotScore);
-      int numScores = 0;
-      for (RobotScore robotScore : _robotScores) {
-        if (!challengerRobotScore.botName.equals(robotScore.botName)
-            && enemies.contains(robotScore.botName)) {
-          totalScore += 100 * (challengerScore
-              / (challengerScore + scorer.apply(robotScore)));
-          numScores++;
-        }
-      }
-      return totalScore / numScores;
-    }
-
-    public List<String> getBots() {
-      return ImmutableList.copyOf(
-          Lists.transform(_robotScores, ROBOT_SCORE_NAME_TRANSFORMER));
+    public RobotScore getRelativeTotalScore(String botName) {
+      RobotScore referenceScore = getRobotScore(botName);
+      List<RobotScore> enemyScores = Lists.newArrayList(_robotScores);
+      enemyScores.remove(referenceScore);
+      return referenceScore.getScoreRelativeTo(enemyScores, _numRounds);
     }
   }
 }

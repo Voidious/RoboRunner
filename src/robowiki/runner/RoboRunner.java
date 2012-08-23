@@ -11,6 +11,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -660,21 +661,42 @@ public class RoboRunner {
 
   private void printMeleeScores(BattleScore lastScore, BattleScore avgScore,
       String challenger, ScoringStyle scoringStyle) {
-    for (String enemy : lastScore.getBots()) {
-      if (!enemy.equals(challenger)) {
-        // TODO: show raw score fields too
-        System.out.println("    vs " + enemy + ": "
-            + round(scoringStyle.getScore(
-                lastScore.getRelativeScore(challenger, enemy)), 2)
+    RobotScore challengerScore = lastScore.getRobotScore(challenger);
+    RobotScore avgChallengerScore = avgScore.getRobotScore(challenger);
+
+    Map<RobotScore, RobotScore> avgScoreMap = Maps.newHashMap();
+    List<RobotScore> avgRobotScores =
+        Lists.newArrayList(avgScore.getRobotScores());
+    avgRobotScores.remove(avgChallengerScore);
+    for (RobotScore robotScore : lastScore.getRobotScores()) {
+      if (robotScore != challengerScore) {
+        Iterator<RobotScore> avgRobotScoreIterator = avgRobotScores.iterator();
+        while (avgRobotScoreIterator.hasNext()) {
+          RobotScore avgRobotScore = avgRobotScoreIterator.next();
+          if (robotScore.botName.equals(avgRobotScore.botName)) {
+            avgScoreMap.put(robotScore, avgRobotScore);
+            avgRobotScoreIterator.remove();
+            break;
+          }
+        }
+      }
+    }
+    for (RobotScore robotScore : lastScore.getRobotScores()) {
+      if (robotScore != challengerScore) {
+        RobotScore relativeScore = challengerScore.getScoreRelativeTo(
+            robotScore, lastScore.getNumRounds());
+        RobotScore avgRelativeScore = avgChallengerScore.getScoreRelativeTo(
+            avgScoreMap.get(robotScore), avgScore.getNumRounds());
+        System.out.println("    vs " + robotScore.botName + ": "
+            + round(scoringStyle.getScore(relativeScore), 2)
             + ", avg: "
-            + round(scoringStyle.getScore(
-                avgScore.getRelativeScore(challenger, enemy)), 2));
+            + round(scoringStyle.getScore(avgRelativeScore), 2));
       }
     }
   }
 
-  private String formatBattleTime(long nanoTime) {
-    return Double.toString(round((double) nanoTime / 1000000000, 1)) + "s";
+  private String formatBattleTime(long battleTime) {
+    return Double.toString(round((double) battleTime / 1000000000, 1)) + "s";
   }
 
   public void shutdown() {
@@ -707,13 +729,11 @@ public class RoboRunner {
     return new BattleResultHandler() {
       @Override
       public void processResults(
-          Map<String, RobotScore> rawScoreMap, long elapsedTime) {
-        List<RobotScore> botArrayList =
-            Lists.newArrayList(rawScoreMap.values());
-        scoreLog.addBattle(botArrayList, challenge.rounds, elapsedTime);
+          List<RobotScore> robotScores, long elapsedTime) {
+        scoreLog.addBattle(robotScores, challenge.rounds, elapsedTime);
         scoreLog.saveScoreLog(xmlFilePath);
 
-        String botList = scoreLog.getSortedBotListFromScores(botArrayList);
+        String botList = scoreLog.getSortedBotListFromScores(robotScores);
         BattleScore lastScore = scoreLog.getLastBattleScore(botList);
         BattleScore avgScore = scoreLog.getAverageBattleScore(botList);
         errorMap.put(botList,
@@ -721,7 +741,7 @@ public class RoboRunner {
 
         printBattleScore(challenger, botList, lastScore, avgScore,
             scoringStyle, elapsedTime, errorMap);
-        if (rawScoreMap.size() > 2) {
+        if (robotScores.size() > 2) {
           printMeleeScores(lastScore, avgScore, challenger, scoringStyle);
         }
         printOverallScores(

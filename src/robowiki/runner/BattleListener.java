@@ -1,19 +1,19 @@
 package robowiki.runner;
 
-import java.util.Map;
-
 import robocode.control.RobotResults;
 import robocode.control.events.BattleAdaptor;
 import robocode.control.events.BattleCompletedEvent;
 import robocode.control.events.BattleErrorEvent;
 
-import com.google.common.collect.Maps;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
 
 public class BattleListener extends BattleAdaptor {
-  private Map<String, RobotResults> _botResults;
+  private Multimap<String, RobotResults> _botResults;
 
   public BattleListener() {
-    _botResults = Maps.newHashMap();
+    _botResults = ArrayListMultimap.create();
   }
 
   public void onBattleCompleted(BattleCompletedEvent completedEvent) {
@@ -29,8 +29,8 @@ public class BattleListener extends BattleAdaptor {
     System.out.println("Robocode error: " + battleErrorEvent.getError());
   }
 
-  public Map<String, RobotResults> getRobotResultsMap() {
-    return Maps.newHashMap(_botResults);
+  public Multimap<String, RobotResults> getRobotResultsMap() {
+    return ImmutableMultimap.copyOf(_botResults);
   }
 
   public void clear() {

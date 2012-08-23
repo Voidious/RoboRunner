@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -16,8 +15,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 
 public class BattleRunner {
@@ -111,11 +110,11 @@ public class BattleRunner {
     return new BattleCallable(selector, handler);
   }
 
-  private Map<String, RobotScore> getRobotScoreMap(String battleResults) {
-    Map<String, RobotScore> scoreMap = Maps.newHashMap();
+  private List<RobotScore> getRobotScoreList(String battleResults) {
+    List<RobotScore> robotScores = Lists.newArrayList();
     String[] botScores =
         battleResults.replaceFirst(BattleProcess.RESULT_SIGNAL, "")
-        .replaceAll("\n", "").split(BattleProcess.BOT_DELIMITER);
+            .replaceAll("\n", "").split(BattleProcess.BOT_DELIMITER);
     for (String scoreString : botScores) {
       String[] scoreFields = scoreString.split(BattleProcess.SCORE_DELIMITER);
       String botName = scoreFields[0];
@@ -125,9 +124,9 @@ public class BattleRunner {
       double bulletDamage = Double.parseDouble(scoreFields[4]);
       RobotScore robotScore =
           new RobotScore(botName, score, firsts, survivalScore, bulletDamage);
-      scoreMap.put(botName, robotScore);
+      robotScores.add(robotScore);
     }
-    return scoreMap;
+    return ImmutableList.copyOf(robotScores);
   }
 
   private boolean isBattleResult(String line) {
@@ -140,7 +139,13 @@ public class BattleRunner {
   }
 
   public interface BattleResultHandler {
-    void processResults(Map<String, RobotScore> robotScoreMap, long nanoTime);
+    /**
+     * Processes the scores from a battle.
+     *
+     * @param robotScores scores for each robot in the battle
+     * @param elapsedTime elapsed time of the battle, in nanoseconds
+     */
+    void processResults(List<RobotScore> robotScores, long elapsedTime);
   }
 
   public interface BattleSelector {
@@ -195,7 +200,7 @@ public class BattleRunner {
         @Override
         public void run() {
           _listener.processResults(
-              getRobotScoreMap(result), System.nanoTime() - startTime);
+              getRobotScoreList(result), System.nanoTime() - startTime);
         }
       }).get();
       return result;

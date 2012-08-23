@@ -1,9 +1,11 @@
 package robowiki.runner;
 
 import java.util.Collection;
+import java.util.List;
 
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 /**
  * A robot's score data for a single battle or a set of battles.
@@ -79,7 +81,58 @@ public class RobotScore {
   }
 
   /**
-   * Calculate the average of two scores, weighted by number of battles.
+   * Calculates this score relative to the given enemy score.
+   * 
+   * @param enemyScore score data for the enemy robot
+   * @param numRounds number of rounds in the battle
+   * @return the {@code RobotScore} relative to the given enemy robot score
+   */
+  public RobotScore getScoreRelativeTo(
+      RobotScore enemyScore, int numRounds) {
+    return getScoreRelativeTo(Lists.newArrayList(enemyScore), numRounds);
+  }
+
+  /**
+   * Calculates this score relative to the given enemy scores.
+   * 
+   * @param enemyScore score data for the other robots in the battle
+   * @param numRounds number of rounds in the battle
+   * @return the {@code RobotScore} relative to the given enemy robot scores
+   */
+  public RobotScore getScoreRelativeTo(
+      List<RobotScore> enemyScores, int numRounds) {
+    return new RobotScore(botName,
+        getAverageScore(RobotScore.NORMAL_SCORER, enemyScores),
+        getAverageScore(RobotScore.SURVIVAL_FIRSTS_SCORER, enemyScores),
+        getAverageScore(RobotScore.SURVIVAL_SCORER, enemyScores),
+        bulletDamage / numRounds,
+        getAverageEnergyConserved(enemyScores, numRounds),
+        numBattles);
+  }
+
+  private double getAverageScore(
+      Function<RobotScore, Double> scorer, Collection<RobotScore> enemyScores) {
+    double totalScore = 0;
+    double challengerScore = scorer.apply(this);
+    int numScores = 0;
+    for (RobotScore robotScore : enemyScores) {
+      totalScore += 100 * (challengerScore
+          / (challengerScore + scorer.apply(robotScore)));
+      numScores++;
+    }
+    return totalScore / numScores;
+  }
+
+  private double getAverageEnergyConserved(
+      List<RobotScore> enemyScores, int numRounds) {
+    if (enemyScores.size() == 1) {
+      return 100 - (enemyScores.get(0).bulletDamage / numRounds);
+    }
+    return 0;
+  }
+
+  /**
+   * Calculates the average of two scores, weighted by number of battles.
    *
    * @param score1 the first score
    * @param score2 the second score
@@ -110,39 +163,6 @@ public class RobotScore {
         score1.botName, score, rounds, survival, damage, energy, addedBattles);
   }
 
-  /**
-   * Calculate the total score for the given bot from the collection of scores
-   * for each bot in the battle.
-   *
-   * @param robotScores scores for each bot in the battle
-   * @param name name of the bot to calculate total score for
-   * @return the average score for the given bot vs the other bots in the battle
-   */
-  public static RobotScore totalScore(
-      Collection<RobotScore> robotScores, String name) {
-    Preconditions.checkArgument(robotScores != null && !robotScores.isEmpty());
-    Preconditions.checkArgument(name != null && !name.isEmpty());
-
-    double totalScore = 0;
-    double totalRounds = 0;
-    double totalSurvival = 0;
-    double totalDamage = 0;
-    double totalEnergy = 0;
-    int numBattles = 0;
-    for (RobotScore robotScore : robotScores) {
-      totalScore += robotScore.score;
-      totalRounds += robotScore.survivalRounds;
-      totalSurvival += robotScore.survivalScore;
-      totalDamage += robotScore.bulletDamage;
-      totalEnergy += robotScore.energyConserved;
-      numBattles += robotScore.numBattles;
-    }
-    int numScores = robotScores.size();
-    return new RobotScore(name, totalScore / numScores, totalRounds / numScores,
-        totalSurvival / numScores, totalDamage / numScores,
-        totalEnergy / numScores, numBattles / numScores);
-  }
-        
   public enum ScoringStyle {
     PERCENT_SCORE("Average Percent Score", NORMAL_SCORER, false),
     SURVIVAL_FIRSTS("Survival Firsts", SURVIVAL_FIRSTS_SCORER, false),
