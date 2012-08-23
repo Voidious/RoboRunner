@@ -43,7 +43,7 @@ public class RoboRunner {
   private static final String DEFAULT_JVM_ARGS = "-Xmx512M";
   private static final String DEFAULT_BOTS_DIRS = "./bots";
   private static final String SLASH = System.getProperty("file.separator");
-  private static final double SMART_BATTLE_RANDOM_RATE = 0.02;
+  private static final double SMART_BATTLE_RANDOM_RATE = 0.1;
 
   private BattleRunner _battleRunner;
   private RunnerConfig _config;
