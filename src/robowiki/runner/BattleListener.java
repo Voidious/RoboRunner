@@ -20,8 +20,7 @@ public class BattleListener extends BattleAdaptor {
     RobotResults[] robotResultsArray =
         RobotResults.convertResults(completedEvent.getIndexedResults());
     for (RobotResults robotResults : robotResultsArray) {
-      _botResults.put(
-          robotResults.getRobot().getNameAndVersion(), robotResults);
+      _botResults.put(robotResults.getTeamLeaderName(), robotResults);
     }
   }
 
