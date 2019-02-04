@@ -47,7 +47,6 @@ else
     echo "  Done!"
   fi
   echo "robocodePaths=$paths" > roborunner.properties
-  echo "jvmArgs=-Xmx512M" >> roborunner.properties
+  echo "jvmArgs=-Xmx1024M -Dapple.awt.UIElement=true" >> roborunner.properties
   echo "botsDirs=./bots" >> roborunner.properties
 fi
-

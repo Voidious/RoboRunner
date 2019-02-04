@@ -1,0 +1,84 @@
+import java.util.stream.Collectors
+
+plugins {
+    id 'java'
+}
+
+group 'roborunner'
+version '2.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation files('libs/robocode.jar')
+    implementation group: 'com.google.guava', name: 'guava', version: '30.0-jre'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src'
+        }
+    }
+}
+
+def distDir = "$buildDir/dist"
+
+task cleanDist(type: Delete) {
+    delete += "$distDir"
+}
+
+task copyDependencies(dependsOn: cleanDist, type: Copy) {
+    from(configurations.runtimeClasspath) {
+        include '*guava*'
+    }
+    into "$distDir/lib"
+}
+
+task runnerJar(type: Jar, dependsOn: [compileJava]) {
+    from(compileJava.outputs)
+
+    archiveName jar.archiveName
+}
+
+task copyLibs(dependsOn: [runnerJar, copyDependencies], type: Copy) {
+    from(runnerJar.outputs)
+    into "$distDir/lib"
+}
+
+task generateScripts(dependsOn: [copyLibs]) {
+    String genOutputDir = file("$buildDir/generated-scripts")
+
+    File outputFile = file("$genOutputDir/rr.sh")
+    outputs.file(outputFile)
+
+    doLast {
+        def libs = copyLibs.outputs.getFiles().singleFile
+        def path = fileTree(dir: libs).files.stream().map({ x -> 'lib' + x.toString().substring(libs.toString().length()) }).collect(Collectors.joining(File.pathSeparator))
+
+        def robocodeJar = ['robocodes','r1','libs','robocode.jar'].join(File.separator)
+
+        outputFile.text = "#!/bin/sh\n" +
+                "java -cp '${path}${File.pathSeparator}${robocodeJar}' robowiki.runner.RoboRunner \$*"
+    }
+}
+
+task makeDist(dependsOn: copyLibs, type: Copy, group: 'deploy') {
+    from('scripts') {
+        include '*.sh'
+        fileMode = 0755
+    }
+    from('scripts') {
+        exclude '*.sh'
+    }
+    from(generateScripts.getOutputs()) {
+        fileMode = 0755
+    }
+    into "$distDir"
+}
+
+classes.dependsOn(makeDist)
