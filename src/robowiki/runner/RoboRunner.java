@@ -626,9 +626,14 @@ public class RoboRunner {
         RobotScore totalRobotScore = scoreLog
             .getAverageBattleScore(botListString)
             .getRelativeTotalScore(scoreLog.challenger);
-        sumScores += scoringStyle.getScore(totalRobotScore);
-        scoredBotLists++;
-        numBattles += totalRobotScore.numBattles;
+        double score = scoringStyle.getScore(totalRobotScore);
+        if (!Double.isNaN(score)) {
+          sumScores += score;
+          scoredBotLists++;
+          numBattles += totalRobotScore.numBattles;
+        } else {
+          System.err.println("NaN: " + scoreLog.challenger + " " + botListString);
+        }
       }
     }
     return new ScoreSummary(sumScores, numBattles, scoredBotLists);
@@ -657,11 +662,12 @@ public class RoboRunner {
             .getAverageBattleScore(botListString)
             .getRelativeTotalScore(scoreLog.challenger);
         ScoreError scoreError = errorMap.get(botListString);
+        double score = challenge.scoringStyle.getScore(totalRobotScore);
         System.out.println("  " + botListString + ": "
-            + round(challenge.scoringStyle.getScore(totalRobotScore), 2)
-            + (scoreError.numBattles > 1
-                ? "  +- " + round(1.96 * scoreError.getStandardError(), 2) : "")
-            + "  (" +  scoreError.numBattles + " battles)");
+          + (Double.isNaN(score) ? Double.NaN : round(score, 2))
+          + (scoreError.numBattles > 1
+          ? "  +- " + round(1.96 * scoreError.getStandardError(), 2) : "")
+          + "  (" + scoreError.numBattles + " battles)");
       }
     }
   }
@@ -850,7 +856,7 @@ public class RoboRunner {
     }
 
     public double getTotalScore() {
-      return round(sumScores / scoredBotLists, 2);
+      return Double.isNaN(sumScores) ? Double.NaN : round(sumScores / scoredBotLists, 2);
     }
   }
 }
