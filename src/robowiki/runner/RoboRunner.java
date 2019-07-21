@@ -379,6 +379,11 @@ public class RoboRunner {
       for (BotList botList : challenge.allReferenceBots) {
         List<String> battleBots = Lists.newArrayList(challenger);
         List<String> botNames = botList.getBotNames();
+
+        if (botNames.contains(challenger)) {
+          continue;
+        }
+
         if (!skip(skipMap, scoreLog.getSortedBotList(botNames))) {
           battleBots.addAll(botNames);
           battleList.add(new BotList(battleBots));
