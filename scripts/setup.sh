@@ -47,6 +47,6 @@ else
     echo "  Done!"
   fi
   echo "robocodePaths=$paths" > roborunner.properties
-  echo "jvmArgs=-Xmx1024M -Dapple.awt.UIElement=true" >> roborunner.properties
+  echo "jvmArgs=-Xmx1024M -Dapple.awt.UIElement\=true -Djava.security.manager=allow -XX:+IgnoreUnrecognizedVMOptions --add-opens\=java.base/sun.net.www.protocol.jar\=ALL-UNNAMED --add-opens\=java.base/java.lang.reflect\=ALL-UNNAMED --add-opens\=java.desktop/javax.swing.text\=ALL-UNNAMED --add-opens\=java.desktop/sun.awt\=ALL-UNNAMED --add-opens\=java.desktop/java.awt\=ALL-UNNAMED --add-opens\=java.base/java.lang\=ALL-UNNAMED --add-opens\=java.desktop/sun.java2d.opengl\=ALL-UNNAMED" >> roborunner.properties
   echo "botsDirs=./bots" >> roborunner.properties
 fi
