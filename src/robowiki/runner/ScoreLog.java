@@ -191,18 +191,24 @@ public class ScoreLog {
       XMLEvent event = eventReader.nextEvent();
       if (event.isStartElement()) {
         String localPart = event.asStartElement().getName().getLocalPart();
-        if (localPart.equals(SCORES)) {
-          scoreLog = new ScoreLog(getAttribute(event, CHALLENGER));
-        } else if (localPart.equals(BATTLE)) {
-          robotScores = Lists.newArrayList();
-        } else if (localPart.equals(ROBOT_SCORE)) {
-          robotScores.add(readRobotScore(eventReader));
-        } else if (localPart.equals(NUM_ROUNDS)) {
-          event = eventReader.nextEvent();
-          numRounds = Integer.parseInt(event.asCharacters().getData());
-        } else if (localPart.equals(TIME)) {
-          event = eventReader.nextEvent();
-          time = Long.parseLong(event.asCharacters().getData());
+        switch (localPart) {
+          case SCORES:
+            scoreLog = new ScoreLog(getAttribute(event, CHALLENGER));
+            break;
+          case BOT_LIST:
+            break;
+          case BATTLE:
+            robotScores = Lists.newArrayList();
+            break;
+          case ROBOT_SCORE:
+            robotScores.add(readRobotScore(eventReader));
+            break;
+          case NUM_ROUNDS:
+            numRounds = Integer.parseInt(eventReader.getElementText());
+            break;
+          case TIME:
+            time = Long.parseLong(eventReader.getElementText());
+            break;
         }
       } else if (event.isEndElement()) {
         String localPart = event.asEndElement().getName().getLocalPart();
@@ -242,17 +248,22 @@ public class ScoreLog {
       } else {
         if (event.isStartElement()) {
           String localPart = event.asStartElement().getName().getLocalPart();
-          event = eventReader.nextEvent();
-          if (localPart.equals(NAME)) {
-            name = event.asCharacters().getData();
-          } else if (localPart.equals(SCORE)) {
-            score = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(SURVIVAL_ROUNDS)) {
-            rounds = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(SURVIVAL_SCORE)) {
-            survival = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(DAMAGE)) {
-            damage = Double.parseDouble(event.asCharacters().getData());
+          switch (localPart) {
+            case NAME:
+              name = eventReader.getElementText();
+              break;
+            case SCORE:
+              score = Double.parseDouble(eventReader.getElementText());
+              break;
+            case SURVIVAL_ROUNDS:
+              rounds = Double.parseDouble(eventReader.getElementText());
+              break;
+            case SURVIVAL_SCORE:
+              survival = Double.parseDouble(eventReader.getElementText());
+              break;
+            case DAMAGE:
+              damage = Double.parseDouble(eventReader.getElementText());
+              break;
           }
         }
       }
