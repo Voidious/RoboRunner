@@ -34,7 +34,7 @@ task cleanDist(type: Delete) {
 
 task copyDependencies(dependsOn: cleanDist, type: Copy) {
     from(configurations.runtimeClasspath) {
-        include '*guava*'
+        include 'guava*'
     }
     into "$distDir/lib"
 }
