@@ -95,7 +95,7 @@ public class RobotScore {
   /**
    * Calculates this score relative to the given enemy scores.
    * 
-   * @param enemyScore score data for the other robots in the battle
+   * @param enemyScores score data for the other robots in the battle
    * @param numRounds number of rounds in the battle
    * @return the {@code RobotScore} relative to the given enemy robot scores
    */
@@ -110,14 +110,38 @@ public class RobotScore {
         numBattles);
   }
 
+  RobotScore getAverageScoreRelativeTo1(List<RobotScore> enemyScores) {
+    return new RobotScore(botName,
+      getAverageScore(NORMAL_SCORER, enemyScores),
+      survivalRounds,
+      survivalScore,
+      bulletDamage,
+      energyConserved,
+      numBattles);
+  }
+
+  RobotScore getAverageScoreRelativeTo2(List<RobotScore> enemyScores, int numRounds) {
+    return new RobotScore(botName,
+      score,
+      getAverageScore(SURVIVAL_FIRSTS_SCORER, enemyScores),
+      getAverageScore(SURVIVAL_SCORER, enemyScores),
+      bulletDamage / numRounds,
+      getAverageEnergyConserved(enemyScores, numRounds),
+      numBattles);
+  }
+
   private double getAverageScore(
       Function<RobotScore, Double> scorer, Collection<RobotScore> enemyScores) {
     double totalScore = 0;
     double challengerScore = scorer.apply(this);
     int numScores = 0;
     for (RobotScore robotScore : enemyScores) {
-      totalScore += 100 * (challengerScore
-          / (challengerScore + scorer.apply(robotScore)));
+      double sum = challengerScore + scorer.apply(robotScore);
+      if (sum == 0.) {
+        totalScore += 50;
+      } else {
+        totalScore += 100 * (challengerScore / sum);
+      }
       numScores++;
     }
     return totalScore / numScores;

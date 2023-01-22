@@ -138,6 +138,8 @@ public class ScoreLog {
     boolean initializeTotalScores = true;
     for (BattleScore battleScore : battleScores) {
       for (RobotScore robotScore : battleScore.getRobotScores()) {
+        robotScore = battleScore.getAverageRelativeTotalScore(robotScore.botName);
+
         if (initializeTotalScores) {
           totalScores.put(robotScore.botName, robotScore);
         } else {
@@ -152,8 +154,8 @@ public class ScoreLog {
       totalRounds += battleScore.getNumRounds();
       totalTime += battleScore.getElapsedTime();
     }
-    return new BattleScore(totalScores.values(),
-        totalRounds / battleScores.size(), totalTime / battleScores.size());
+    return new AverageBattleScore(totalScores.values(),
+      totalRounds / battleScores.size(), totalTime / battleScores.size());
   }
 
   public int getBattleCount(List<BotList> allReferenceBots) {
@@ -191,18 +193,24 @@ public class ScoreLog {
       XMLEvent event = eventReader.nextEvent();
       if (event.isStartElement()) {
         String localPart = event.asStartElement().getName().getLocalPart();
-        if (localPart.equals(SCORES)) {
-          scoreLog = new ScoreLog(getAttribute(event, CHALLENGER));
-        } else if (localPart.equals(BATTLE)) {
-          robotScores = Lists.newArrayList();
-        } else if (localPart.equals(ROBOT_SCORE)) {
-          robotScores.add(readRobotScore(eventReader));
-        } else if (localPart.equals(NUM_ROUNDS)) {
-          event = eventReader.nextEvent();
-          numRounds = Integer.parseInt(event.asCharacters().getData());
-        } else if (localPart.equals(TIME)) {
-          event = eventReader.nextEvent();
-          time = Long.parseLong(event.asCharacters().getData());
+        switch (localPart) {
+          case SCORES:
+            scoreLog = new ScoreLog(getAttribute(event, CHALLENGER));
+            break;
+          case BOT_LIST:
+            break;
+          case BATTLE:
+            robotScores = Lists.newArrayList();
+            break;
+          case ROBOT_SCORE:
+            robotScores.add(readRobotScore(eventReader));
+            break;
+          case NUM_ROUNDS:
+            numRounds = Integer.parseInt(eventReader.getElementText());
+            break;
+          case TIME:
+            time = Long.parseLong(eventReader.getElementText());
+            break;
         }
       } else if (event.isEndElement()) {
         String localPart = event.asEndElement().getName().getLocalPart();
@@ -242,17 +250,22 @@ public class ScoreLog {
       } else {
         if (event.isStartElement()) {
           String localPart = event.asStartElement().getName().getLocalPart();
-          event = eventReader.nextEvent();
-          if (localPart.equals(NAME)) {
-            name = event.asCharacters().getData();
-          } else if (localPart.equals(SCORE)) {
-            score = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(SURVIVAL_ROUNDS)) {
-            rounds = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(SURVIVAL_SCORE)) {
-            survival = Double.parseDouble(event.asCharacters().getData());
-          } else if (localPart.equals(DAMAGE)) {
-            damage = Double.parseDouble(event.asCharacters().getData());
+          switch (localPart) {
+            case NAME:
+              name = eventReader.getElementText();
+              break;
+            case SCORE:
+              score = Double.parseDouble(eventReader.getElementText());
+              break;
+            case SURVIVAL_ROUNDS:
+              rounds = Double.parseDouble(eventReader.getElementText());
+              break;
+            case SURVIVAL_SCORE:
+              survival = Double.parseDouble(eventReader.getElementText());
+              break;
+            case DAMAGE:
+              damage = Double.parseDouble(eventReader.getElementText());
+              break;
           }
         }
       }
@@ -391,9 +404,9 @@ public class ScoreLog {
    * @author Voidious
    */
   public static class BattleScore {
-    private final List<RobotScore> _robotScores;
-    private final int _numRounds;
-    private final long _elapsedTime;
+    final List<RobotScore> _robotScores;
+    final int _numRounds;
+    final long _elapsedTime;
 
     public BattleScore(
         Collection<RobotScore> scores, int numRounds, long nanoTime) {
@@ -425,9 +438,39 @@ public class ScoreLog {
 
     public RobotScore getRelativeTotalScore(String botName) {
       RobotScore referenceScore = getRobotScore(botName);
-      List<RobotScore> enemyScores = Lists.newArrayList(_robotScores);
-      enemyScores.remove(referenceScore);
-      return referenceScore.getScoreRelativeTo(enemyScores, _numRounds);
+      if (referenceScore != null) {
+        List<RobotScore> enemyScores = Lists.newArrayList(_robotScores);
+        enemyScores.remove(referenceScore);
+        return referenceScore.getScoreRelativeTo(enemyScores, _numRounds);
+      }
+      return null;
+    }
+
+    RobotScore getAverageRelativeTotalScore(String botName) {
+      RobotScore referenceScore = getRobotScore(botName);
+      if (referenceScore != null) {
+        List<RobotScore> enemyScores = Lists.newArrayList(_robotScores);
+        enemyScores.remove(referenceScore);
+        return referenceScore.getAverageScoreRelativeTo1(enemyScores);
+      }
+      return null;
+    }
+  }
+
+  public static final class AverageBattleScore extends BattleScore {
+    public AverageBattleScore(Collection<RobotScore> scores, int numRounds, long nanoTime) {
+      super(scores, numRounds, nanoTime);
+    }
+
+    @Override
+    public RobotScore getRelativeTotalScore(String botName) {
+      RobotScore referenceScore = getRobotScore(botName);
+      if (referenceScore != null) {
+        List<RobotScore> enemyScores = Lists.newArrayList(_robotScores);
+        enemyScores.remove(referenceScore);
+        return referenceScore.getAverageScoreRelativeTo2(enemyScores, _numRounds);
+      }
+      return null;
     }
   }
 }

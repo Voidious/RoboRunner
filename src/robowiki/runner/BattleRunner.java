@@ -63,7 +63,10 @@ public class BattleRunner {
       String processOutput;
       do {
         processOutput = reader.readLine();
-      } while (!processOutput.equals(BattleProcess.READY_SIGNAL));
+      } while (processOutput != null && !processOutput.equals(BattleProcess.READY_SIGNAL));
+      if (processOutput == null) {
+        throw new IOException("processOutput == null");
+      }
       System.out.println("done!");
       _processQueue.add(battleProcess);
     } catch (IOException e) {
