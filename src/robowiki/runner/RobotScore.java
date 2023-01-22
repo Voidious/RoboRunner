@@ -95,7 +95,7 @@ public class RobotScore {
   /**
    * Calculates this score relative to the given enemy scores.
    * 
-   * @param enemyScore score data for the other robots in the battle
+   * @param enemyScores score data for the other robots in the battle
    * @param numRounds number of rounds in the battle
    * @return the {@code RobotScore} relative to the given enemy robot scores
    */
