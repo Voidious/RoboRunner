@@ -110,6 +110,26 @@ public class RobotScore {
         numBattles);
   }
 
+  RobotScore getAverageScoreRelativeTo1(List<RobotScore> enemyScores) {
+    return new RobotScore(botName,
+      getAverageScore(NORMAL_SCORER, enemyScores),
+      survivalRounds,
+      survivalScore,
+      bulletDamage,
+      energyConserved,
+      numBattles);
+  }
+
+  RobotScore getAverageScoreRelativeTo2(List<RobotScore> enemyScores, int numRounds) {
+    return new RobotScore(botName,
+      score,
+      getAverageScore(SURVIVAL_FIRSTS_SCORER, enemyScores),
+      getAverageScore(SURVIVAL_SCORER, enemyScores),
+      bulletDamage / numRounds,
+      getAverageEnergyConserved(enemyScores, numRounds),
+      numBattles);
+  }
+
   private double getAverageScore(
       Function<RobotScore, Double> scorer, Collection<RobotScore> enemyScores) {
     double totalScore = 0;

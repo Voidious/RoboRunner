@@ -138,6 +138,8 @@ public class ScoreLog {
     boolean initializeTotalScores = true;
     for (BattleScore battleScore : battleScores) {
       for (RobotScore robotScore : battleScore.getRobotScores()) {
+        robotScore = battleScore.getAverageRelativeTotalScore(robotScore.botName);
+
         if (initializeTotalScores) {
           totalScores.put(robotScore.botName, robotScore);
         } else {
@@ -152,8 +154,8 @@ public class ScoreLog {
       totalRounds += battleScore.getNumRounds();
       totalTime += battleScore.getElapsedTime();
     }
-    return new BattleScore(totalScores.values(),
-        totalRounds / battleScores.size(), totalTime / battleScores.size());
+    return new AverageBattleScore(totalScores.values(),
+      totalRounds / battleScores.size(), totalTime / battleScores.size());
   }
 
   public int getBattleCount(List<BotList> allReferenceBots) {
@@ -402,9 +404,9 @@ public class ScoreLog {
    * @author Voidious
    */
   public static class BattleScore {
-    private final List<RobotScore> _robotScores;
-    private final int _numRounds;
-    private final long _elapsedTime;
+    final List<RobotScore> _robotScores;
+    final int _numRounds;
+    final long _elapsedTime;
 
     public BattleScore(
         Collection<RobotScore> scores, int numRounds, long nanoTime) {
@@ -440,6 +442,33 @@ public class ScoreLog {
         List<RobotScore> enemyScores = Lists.newArrayList(_robotScores);
         enemyScores.remove(referenceScore);
         return referenceScore.getScoreRelativeTo(enemyScores, _numRounds);
+      }
+      return null;
+    }
+
+    RobotScore getAverageRelativeTotalScore(String botName) {
+      RobotScore referenceScore = getRobotScore(botName);
+      if (referenceScore != null) {
+        List<RobotScore> enemyScores = Lists.newArrayList(_robotScores);
+        enemyScores.remove(referenceScore);
+        return referenceScore.getAverageScoreRelativeTo1(enemyScores);
+      }
+      return null;
+    }
+  }
+
+  public static final class AverageBattleScore extends BattleScore {
+    public AverageBattleScore(Collection<RobotScore> scores, int numRounds, long nanoTime) {
+      super(scores, numRounds, nanoTime);
+    }
+
+    @Override
+    public RobotScore getRelativeTotalScore(String botName) {
+      RobotScore referenceScore = getRobotScore(botName);
+      if (referenceScore != null) {
+        List<RobotScore> enemyScores = Lists.newArrayList(_robotScores);
+        enemyScores.remove(referenceScore);
+        return referenceScore.getAverageScoreRelativeTo2(enemyScores, _numRounds);
       }
       return null;
     }
