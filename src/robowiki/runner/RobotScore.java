@@ -116,8 +116,12 @@ public class RobotScore {
     double challengerScore = scorer.apply(this);
     int numScores = 0;
     for (RobotScore robotScore : enemyScores) {
-      totalScore += 100 * (challengerScore
-          / (challengerScore + scorer.apply(robotScore)));
+      double sum = challengerScore + scorer.apply(robotScore);
+      if (sum == 0.) {
+        totalScore += 50;
+      } else {
+        totalScore += 100 * (challengerScore / sum);
+      }
       numScores++;
     }
     return totalScore / numScores;
